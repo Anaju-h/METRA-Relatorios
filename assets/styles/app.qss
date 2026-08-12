@@ -1,0 +1,1373 @@
+QMainWindow {
+    background-color: #F3F6F8;
+}
+
+QWidget {
+    font-family: "Segoe UI";
+    color: #14263A;
+}
+
+#appShell,
+#appBody {
+    background-color: #F3F6F8;
+}
+
+#pageBackground {
+    background-color: #F3F6F8;
+}
+
+#pageContent {
+    background-color: transparent;
+}
+
+
+/* =========================================================
+   CABEÇALHO GLOBAL
+   ========================================================= */
+
+#appHeader {
+    background-color: #FFFFFF;
+    border: none;
+}
+
+#appHeaderCenter {
+    background-color: transparent;
+}
+
+#appHeaderTitle {
+    color: #0756A0;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+
+#appHeaderSubtitle {
+    color: #3F5871;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+#appHeaderLogo {
+    background-color: transparent;
+    border: none;
+}
+
+#appHeaderLogoFallback {
+    color: #173A5E;
+    background-color: transparent;
+    border: none;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#appHeaderSeparator {
+    background-color: #006CB7;
+    border: none;
+}
+
+
+/* =========================================================
+   SIDEBAR GLOBAL
+   ========================================================= */
+
+#appSidebar {
+    background-color: #06294B;
+    border: none;
+}
+
+#sidebarSectionLabel {
+    color: #87A9C8;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 5px 9px;
+}
+
+#sidebarButton {
+    background-color: transparent;
+    color: #E9F1F7;
+    border: none;
+    border-radius: 7px;
+    padding: 10px 11px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+}
+
+#sidebarButton:hover {
+    background-color: #0B3D69;
+    color: #FFFFFF;
+}
+
+#sidebarButton[active="true"] {
+    background-color: #0873C5;
+    color: #FFFFFF;
+    border-left: 3px solid #F07C00;
+}
+
+#sidebarButton:disabled {
+    color: #66839E;
+    background-color: transparent;
+}
+
+#sidebarFooter {
+    color: #7898B5;
+    font-size: 11px;
+    padding: 10px;
+}
+
+
+/* =========================================================
+   HOME
+   ========================================================= */
+
+#homeHero {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 10px;
+}
+
+#homeEyebrow {
+    color: #006CB7;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+#homeTitle {
+    font-size: 34px;
+    font-weight: 750;
+    color: #08233E;
+}
+
+#homeDescription {
+    font-size: 15px;
+    color: #536A80;
+    line-height: 1.5;
+}
+
+#homeChartCard {
+    background-color: #F7FAFC;
+    border: 1px solid #E0E7ED;
+    border-radius: 9px;
+}
+
+#homeLegendLabel {
+    color: #536A80;
+    font-size: 12px;
+}
+
+#homeLegendValue {
+    color: #08233E;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#recentProjectsContainer {
+    background-color: transparent;
+}
+
+#recentProjectCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 8px;
+}
+
+#recentProjectCard:hover {
+    background-color: #F9FBFD;
+    border: 1px solid #AEC3D4;
+}
+
+#projectDocumentIcon {
+    background-color: #EAF3FA;
+    color: #006CB7;
+    border-radius: 8px;
+    font-size: 24px;
+}
+
+#sectionTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: #08233E;
+}
+
+#sectionDescription {
+    font-size: 13px;
+    color: #667A8E;
+}
+
+#emptyState {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 8px;
+    padding: 28px;
+    font-size: 14px;
+    color: #667A8E;
+}
+
+#separator {
+    color: #D8E1E9;
+}
+
+
+/* =========================================================
+   BOTÕES
+   ========================================================= */
+
+#primaryButton {
+    background-color: #006CB7;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 7px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 650;
+}
+
+#primaryButton:hover {
+    background-color: #005A99;
+}
+
+#primaryButton:pressed {
+    background-color: #004D83;
+}
+
+#secondaryButton {
+    background-color: #FFFFFF;
+    color: #164B78;
+    border: 1px solid #BFCEDB;
+    border-radius: 7px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 650;
+}
+
+#secondaryButton:hover {
+    background-color: #EDF5FA;
+    border-color: #8FAFC8;
+}
+
+#backButton {
+    background-color: transparent;
+    color: #31516D;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    padding: 4px 0px;
+}
+
+#backButton:hover {
+    color: #006CB7;
+}
+
+
+/* =========================================================
+   PÁGINAS
+   ========================================================= */
+
+#pageTitle {
+    font-size: 28px;
+    font-weight: 750;
+    color: #08233E;
+}
+
+#pageSubtitle {
+    font-size: 14px;
+    color: #667A8E;
+}
+
+
+/* =========================================================
+   FORMULÁRIOS
+   ========================================================= */
+
+#formCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+}
+
+#formSectionTitle {
+    font-size: 17px;
+    font-weight: 700;
+    color: #08233E;
+}
+
+#formSectionDescription {
+    font-size: 13px;
+    color: #667A8E;
+}
+
+QLabel {
+    background-color: transparent;
+}
+
+QLineEdit,
+QComboBox,
+QTextEdit {
+    background-color: #FFFFFF;
+    border: 1px solid #C7D3DE;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    color: #14263A;
+}
+
+QLineEdit,
+QComboBox {
+    min-height: 24px;
+}
+
+QLineEdit:focus,
+QComboBox:focus,
+QTextEdit:focus {
+    border: 1px solid #006CB7;
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 28px;
+}
+
+
+/* =========================================================
+   WORKSPACE
+   ========================================================= */
+
+#projectId {
+    font-size: 13px;
+    font-weight: 700;
+    color: #006CB7;
+}
+
+#projectMeta {
+    color: #667A8E;
+    font-size: 13px;
+}
+
+#statusBadge {
+    background-color: #E7F2FA;
+    color: #005A96;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+#versionBadge {
+    background-color: #FFF0E1;
+    color: #C35F00;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+#dashboardCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 8px;
+}
+
+#cardTitle {
+    color: #08233E;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+#cardDescription {
+    color: #667A8E;
+    font-size: 13px;
+}
+
+#dataLabel {
+    color: #667A8E;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#dataValue {
+    color: #14263A;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#cardButton {
+    background-color: transparent;
+    color: #006CB7;
+    border: none;
+    padding: 5px 0px;
+    font-size: 13px;
+    font-weight: 650;
+    text-align: left;
+}
+
+#cardButton:hover {
+    color: #004F89;
+}
+
+
+/* =========================================================
+   IMPORTAÇÃO PDF
+   ========================================================= */
+
+#uploadCard {
+    background-color: #FFFFFF;
+    border: 1px dashed #AEBBC8;
+    border-radius: 9px;
+    min-height: 230px;
+}
+
+#uploadTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: #08233E;
+}
+
+#uploadDescription {
+    font-size: 14px;
+    color: #667A8E;
+}
+
+
+/* =========================================================
+   TABELAS
+   ========================================================= */
+
+QTableWidget {
+    background-color: #FFFFFF;
+    alternate-background-color: #F8FAFC;
+    color: #14263A;
+    border: 1px solid #D8E1E9;
+    border-radius: 7px;
+    gridline-color: #E5EAF0;
+    selection-background-color: #E4F0F8;
+    selection-color: #14263A;
+}
+
+QTableWidget::item {
+    padding: 6px;
+}
+
+QHeaderView::section {
+    background-color: #F3F6F9;
+    color: #17324D;
+    border: none;
+    border-right: 1px solid #DDE3EA;
+    border-bottom: 1px solid #DDE3EA;
+    padding: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+
+/* =========================================================
+   SCROLL
+   ========================================================= */
+
+QScrollArea {
+    background-color: #F3F6F8;
+    border: none;
+}
+
+QScrollArea > QWidget > QWidget {
+    background-color: #F3F6F8;
+}
+
+QScrollBar:vertical {
+    background-color: #E9EEF2;
+    width: 10px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #B5C1CC;
+    min-height: 30px;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #96A6B5;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+}
+
+
+/* =========================================================
+   IMPORTAÇÃO DE DOCUMENTOS
+   ========================================================= */
+
+#recommendedLabel {
+    color: #006CB7;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#pdfDropArea {
+    background-color: #FFFFFF;
+    border: 2px dashed #AEBBC8;
+    border-radius: 10px;
+}
+
+#pdfDropArea[dragActive="true"] {
+    background-color: #EAF4FB;
+    border: 2px dashed #006CB7;
+}
+
+#dropPdfIcon {
+    background-color: #E8F1F8;
+    color: #006CB7;
+    border-radius: 9px;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+#documentListCard {
+    background-color: #F8FAFC;
+    border: 1px solid #D8E1E9;
+    border-radius: 8px;
+}
+
+#documentOrder {
+    background-color: #E8F1F8;
+    color: #006CB7;
+    border-radius: 13px;
+    padding: 6px 9px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#fieldSource {
+    color: #687B8C;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+#analysisWarning {
+    background-color: #FFF8E8;
+    color: #8A5A00;
+    border: 1px solid #F2D48A;
+    border-radius: 7px;
+    padding: 9px 11px;
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   CENTRAL DE DOCUMENTOS
+   ========================================================= */
+
+#processDocumentCard {
+    background-color: #F8FAFC;
+    border: 1px solid #D8E1E9;
+    border-radius: 8px;
+}
+
+#processDocumentCard:hover {
+    background-color: #F4F8FB;
+    border: 1px solid #B9C9D7;
+}
+
+#documentSummaryValue {
+    color: #08233E;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+#documentExtractionInfo {
+    color: #475467;
+    font-size: 12px;
+}
+
+#documentSources {
+    background-color: #EEF4F8;
+    color: #31516D;
+    border: 1px solid #D7E2EB;
+    border-radius: 7px;
+    padding: 9px 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#documentPendingBadge {
+    background-color: #F2F4F7;
+    color: #475467;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#documentProcessingBadge {
+    background-color: #E8F1F8;
+    color: #005A96;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* =========================================================
+   COMPONENTES REUTILIZÁVEIS — PÁGINAS
+   ========================================================= */
+
+#pageHeader {
+    background-color: transparent;
+    border: none;
+}
+
+#pageHeaderTitle {
+    color: #08233E;
+    font-size: 28px;
+    font-weight: 750;
+}
+
+#pageHeaderSubtitle {
+    color: #667A8E;
+    font-size: 14px;
+}
+
+#pageHeaderMetadata {
+    color: #667A8E;
+    font-size: 13px;
+}
+
+#sectionHeader {
+    background-color: transparent;
+    border: none;
+}
+
+#sectionHeaderTitle {
+    color: #08233E;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+#sectionHeaderDescription {
+    color: #667A8E;
+    font-size: 13px;
+}
+
+
+/* =========================================================
+   CARDS DE MÉTRICAS
+   ========================================================= */
+
+#metricCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+}
+
+#metricCard:hover {
+    background-color: #FBFCFD;
+    border-color: #B8C8D5;
+}
+
+#metricCard[accent="blue"] {
+    border-top: 3px solid #0873C5;
+}
+
+#metricCard[accent="navy"] {
+    border-top: 3px solid #173A5E;
+}
+
+#metricCard[accent="orange"] {
+    border-top: 3px solid #F07C00;
+}
+
+#metricLabel {
+    color: #667A8E;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#metricValue {
+    color: #08233E;
+    font-size: 25px;
+    font-weight: 750;
+}
+
+#metricHelper {
+    color: #718396;
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   VISÃO GERAL
+   ========================================================= */
+
+#overviewIdentityCard,
+#overviewDetailsCard,
+#overviewStageCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+}
+
+#overviewStageCard:hover {
+    background-color: #F9FBFD;
+    border-color: #B6C8D6;
+}
+
+#overviewProjectTitle {
+    color: #08233E;
+    font-size: 27px;
+    font-weight: 750;
+}
+
+#overviewEquipmentBadge {
+    background-color: #E9F3FA;
+    color: #075B99;
+    border: 1px solid #C9DEEC;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+
+/* =========================================================
+   DOCUMENTOS
+   ========================================================= */
+
+#documentsListContainer {
+    background-color: transparent;
+}
+
+#processDocumentCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+}
+
+#processDocumentCard:hover {
+    background-color: #F8FBFD;
+    border-color: #B5C8D7;
+}
+
+
+/* =========================================================
+   MEDIÇÃO
+   ========================================================= */
+
+#measurementContextCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+}
+
+#documentListItem {
+    background-color: #F8FAFC;
+    border: 1px solid #DDE5EC;
+    border-radius: 8px;
+}
+
+#documentListItem:hover {
+    background-color: #F3F8FB;
+    border-color: #B8CAD8;
+}
+
+
+/* =========================================================
+   IMAGENS
+   ========================================================= */
+
+#imageSummaryCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+}
+
+#imageCountCard {
+    background-color: #FFFFFF;
+    color: #08233E;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+    padding: 18px 22px;
+    font-size: 18px;
+    font-weight: 750;
+}
+
+#imageDropArea {
+    background-color: #FFFFFF;
+    border: 2px dashed #AEBFCC;
+    border-radius: 11px;
+}
+
+#imageDropArea:hover {
+    background-color: #F8FCFF;
+    border-color: #4F97C9;
+}
+
+#imageDropArea[dragActive="true"] {
+    background-color: #EAF5FC;
+    border: 2px dashed #006CB7;
+}
+
+#uploadBadge {
+    background-color: #E8F2F9;
+    color: #006CB7;
+    border: 1px solid #C8DDEB;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 750;
+}
+
+#imageCard,
+#imageGalleryCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 9px;
+}
+
+#imageCard:hover,
+#imageGalleryCard:hover {
+    background-color: #F9FBFD;
+    border-color: #B7C9D7;
+}
+
+
+/* =========================================================
+   STATUS
+   ========================================================= */
+
+#statusBadgeSuccess {
+    background-color: #E7F5EC;
+    color: #167443;
+    border: 1px solid #BFE3CC;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#statusBadgeWarning {
+    background-color: #FFF3E2;
+    color: #B65A00;
+    border: 1px solid #F2D3A6;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#statusBadgeDanger {
+    background-color: #FDECEC;
+    color: #A63131;
+    border: 1px solid #EDC1C1;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   REVISÃO DA EXTRAÇÃO
+   ========================================================= */
+
+#documentReviewTitle {
+    background-color: #FFFFFF;
+    color: #08233E;
+    border: 1px solid #D8E1E9;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+#extractionTable {
+    background-color: #FFFFFF;
+    alternate-background-color: #F8FAFC;
+    border: 1px solid #D8E1E9;
+    border-radius: 7px;
+}
+
+
+/* =========================================================
+   NOVO PROCESSO
+   ========================================================= */
+
+#startOptionCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 10px;
+}
+
+#startOptionCard:hover {
+    background-color: #F9FBFD;
+    border-color: #ABC2D4;
+}
+
+#startOptionCard[recommended="true"] {
+    border: 1px solid #86B9DC;
+}
+
+#startOptionIcon {
+    background-color: #E8F2F9;
+    color: #006CB7;
+    border-radius: 10px;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+#processTypeBadge {
+    background-color: #E9F3FA;
+    color: #075A97;
+    border: 1px solid #C9DEEC;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+#analysisModel {
+    background-color: #F2F6F9;
+    color: #31516D;
+    border: 1px solid #D9E3EA;
+    border-radius: 7px;
+    padding: 9px 11px;
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   PDF VIEWER
+   ========================================================= */
+
+#pdfSidebar {
+    background-color: #F4F7FA;
+    border-right: 1px solid #D7E0E8;
+}
+
+#pdfViewerCard {
+    background-color: #CDD3D8;
+    border: none;
+}
+
+#pdfPageScroll,
+#pdfPageContainer {
+    background-color: #CDD3D8;
+}
+
+#pdfPageImage {
+    background-color: #FFFFFF;
+    border: 1px solid #AEB7BF;
+}
+
+#pdfControlsCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D7E0E8;
+    border-radius: 8px;
+}
+
+#pdfSidebarSectionTitle {
+    color: #66788A;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+#pdfDocumentName {
+    color: #0B1F33;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#pdfDocumentMeta {
+    color: #667085;
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   DIÁLOGOS E CAIXAS DE MENSAGEM
+   ========================================================= */
+
+QMessageBox,
+QDialog {
+    background-color: #FFFFFF;
+}
+
+QMessageBox QLabel,
+QDialog QLabel {
+    background-color: transparent;
+    color: #14263A;
+    font-size: 13px;
+}
+
+QMessageBox QPushButton,
+QDialogButtonBox QPushButton {
+    background-color: #FFFFFF;
+    color: #164B78;
+    border: 1px solid #BFCEDB;
+    border-radius: 6px;
+    min-width: 88px;
+    min-height: 34px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+QMessageBox QPushButton:hover,
+QDialogButtonBox QPushButton:hover {
+    background-color: #EDF5FA;
+    border-color: #8FAFC8;
+}
+
+QMessageBox QPushButton:default,
+QDialogButtonBox QPushButton:default {
+    background-color: #006CB7;
+    color: #FFFFFF;
+    border-color: #006CB7;
+}
+
+QMessageBox QPushButton:default:hover,
+QDialogButtonBox QPushButton:default:hover {
+    background-color: #005A99;
+    border-color: #005A99;
+}
+
+
+/* =========================================================
+   COMBOBOX — LISTA SUSPENSA
+   ========================================================= */
+
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF;
+    color: #14263A;
+    border: 1px solid #C7D3DE;
+    selection-background-color: #E4F0F8;
+    selection-color: #14263A;
+    outline: none;
+}
+
+
+/* =========================================================
+   SPINBOX
+   ========================================================= */
+
+QSpinBox {
+    background-color: #FFFFFF;
+    color: #14263A;
+    border: 1px solid #C7D3DE;
+    border-radius: 6px;
+    padding: 8px 10px;
+    min-height: 24px;
+    font-size: 14px;
+}
+
+QSpinBox:focus {
+    border: 1px solid #006CB7;
+}
+
+
+/* =========================================================
+   BARRA DE PROGRESSO
+   ========================================================= */
+
+QProgressBar {
+    background-color: #E5ECF2;
+    border: none;
+    border-radius: 6px;
+    min-height: 12px;
+    max-height: 12px;
+}
+
+QProgressBar::chunk {
+    background-color: #0873C5;
+    border-radius: 6px;
+}
+
+
+/* =========================================================
+   VISUALIZADOR PDF — LAYOUT PREMIUM
+   ========================================================= */
+
+#finalReportPreviewPage {
+    background-color: #F3F6F8;
+}
+
+#finalPreviewTopBar {
+    background-color: #FFFFFF;
+    border-bottom: 1px solid #D7E0E8;
+}
+
+#finalPreviewTitle {
+    color: #08233E;
+    font-size: 17px;
+    font-weight: 750;
+}
+
+#finalPreviewFile {
+    color: #667A8E;
+    font-size: 11px;
+}
+
+#previewNoticeBar {
+    background-color: #EFF6FB;
+    border-bottom: 1px solid #D4E3EE;
+}
+
+#previewNoticeIcon {
+    background-color: #DCECF7;
+    color: #006CB7;
+    border: 1px solid #BFD8E9;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+#previewNoticeText {
+    color: #31516D;
+    font-size: 12px;
+}
+
+#approveExportButton {
+    background-color: #218653;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 7px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#approveExportButton:hover {
+    background-color: #197347;
+}
+
+#approveExportButton:pressed {
+    background-color: #145F3B;
+}
+
+#approveExportButton:disabled {
+    background-color: #AFC9BA;
+    color: #F5F8F6;
+}
+
+
+/* ---------------------------------------------------------
+   SIDEBAR DE MINIATURAS
+   --------------------------------------------------------- */
+
+#pdfSidebar {
+    background-color: #F7F9FB;
+    border-right: 1px solid #D7E0E8;
+}
+
+#pdfSidebarSectionTitle {
+    color: #6A7C8E;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: 0.6px;
+}
+
+#pdfDocumentName {
+    color: #0B1F33;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#pdfDocumentMeta {
+    color: #748596;
+    font-size: 11px;
+}
+
+#pdfSidebarSeparator {
+    background-color: #DDE4EA;
+    border: none;
+}
+
+#pdfPageList {
+    background-color: transparent;
+    border: none;
+    outline: none;
+    padding: 0px;
+}
+
+#pdfPageList::item {
+    color: #40566B;
+    background-color: transparent;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 6px;
+    margin: 2px 0px;
+}
+
+#pdfPageList::item:selected {
+    color: #0B1F33;
+    background-color: #E8F3FB;
+    border: 2px solid #0875BE;
+}
+
+#pdfPageList::item:hover:!selected {
+    background-color: #EDF2F6;
+    border-color: #D6E0E8;
+}
+
+#pdfPageIndicator {
+    color: #17324D;
+    background-color: #FFFFFF;
+    border: 1px solid #D4DEE6;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+
+/* ---------------------------------------------------------
+   BARRA DE FERRAMENTAS DO PDF
+   --------------------------------------------------------- */
+
+#pdfToolbar {
+    background-color: #FFFFFF;
+    border-bottom: 1px solid #D7E0E8;
+}
+
+#pdfToolbarSeparator {
+    background-color: #DCE3E9;
+    border: none;
+}
+
+#pdfToolbarButton {
+    background-color: #FFFFFF;
+    color: #17324D;
+    border: 1px solid #C8D3DD;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 750;
+}
+
+#pdfToolbarButton:hover {
+    background-color: #EAF3FA;
+    border-color: #7FAFD1;
+}
+
+#pdfToolbarButton:pressed {
+    background-color: #DCEBF6;
+}
+
+#pdfToolbarButton:disabled {
+    background-color: #F3F5F7;
+    color: #A2ADB7;
+    border-color: #E1E6EA;
+}
+
+#pdfToolbarAction {
+    background-color: #FFFFFF;
+    color: #31516D;
+    border: 1px solid #C8D3DD;
+    border-radius: 7px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+#pdfToolbarAction:hover {
+    background-color: #EDF5FA;
+    color: #075A97;
+    border-color: #90B5CF;
+}
+
+#pdfToolbarAction:pressed {
+    background-color: #DFECF5;
+}
+
+#pdfToolbarAction:disabled {
+    background-color: #F3F5F7;
+    color: #A2ADB7;
+    border-color: #E1E6EA;
+}
+
+#pdfToolbarValue {
+    color: #17324D;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+
+/* ---------------------------------------------------------
+   ÁREA PRINCIPAL DO DOCUMENTO
+   --------------------------------------------------------- */
+
+#pdfViewerCard {
+    background-color: #ECEFF3;
+    border: none;
+}
+
+#pdfPageScroll {
+    background-color: #ECEFF3;
+    border: none;
+}
+
+#pdfPageContainer {
+    background-color: #ECEFF3;
+}
+
+#pdfPageImage {
+    background-color: #FFFFFF;
+    border: none;
+}
+
+
+/* =========================================================
+   VISUALIZADOR PDF — MINIATURAS RECONSTRUÍDAS
+   ========================================================= */
+
+#pdfSidebar {
+    min-width: 272px;
+    max-width: 272px;
+    background-color: #F7F9FB;
+    border-right: 1px solid #D7E0E8;
+}
+
+#pdfThumbnailsScroll,
+#pdfThumbnailsContainer {
+    background-color: transparent;
+    border: none;
+}
+
+#pdfThumbnailCard {
+    background-color: #FFFFFF;
+    border: 2px solid transparent;
+    border-radius: 9px;
+}
+
+#pdfThumbnailCard:hover {
+    background-color: #F2F7FB;
+    border-color: #C9D9E5;
+}
+
+#pdfThumbnailCard[selected="true"] {
+    background-color: #E8F3FB;
+    border: 2px solid #0875BE;
+}
+
+#pdfThumbnailImage {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+}
+
+#pdfThumbnailPageLabel {
+    background-color: transparent;
+    color: #52687C;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+#pdfThumbnailCard[selected="true"] #pdfThumbnailPageLabel {
+    color: #075A97;
+    font-weight: 750;
+}

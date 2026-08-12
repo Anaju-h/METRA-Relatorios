@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Cache / temporários do METRA
+cache/
+**/cache/
+previews/
+**/previews/
+
+# Arquivos temporários
+*.tmp
+*.log
+
+# Build / distribuição
+build/
+dist/
+*.spec
+
+# Banco local
+data/database.db
+
+# PDFs gerados/exportados
+projects/*/generated/
+projects/*/exports/
+
+# Arquivos de preview
+projects/*/previews/
+
+# DADOS LOCAIS DOS PROCESSOS 
+
+# Processos criados durante uso/testes
+projects/
+
+# Banco SQLite local
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos compactados temporários / backups locais
+database.zip
+utils.zip
