@@ -2,22 +2,11 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QSizePolicy,
-    QVBoxLayout,
-    QWidget,
+    QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 
 class SectionHeader(QWidget):
-    """
-    Cabeçalho de seção reutilizável.
-
-    Mantém títulos, descrições e ações com a mesma
-    hierarquia visual em todas as páginas.
-    """
-
     def __init__(
         self,
         title: str,
@@ -40,38 +29,24 @@ class SectionHeader(QWidget):
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(3)
 
-        self.title_label = QLabel(title)
+        self.title_label = QLabel(title, self)
         self.title_label.setObjectName("sectionTitle")
         self.title_label.setWordWrap(True)
 
-        self.description_label = QLabel(description)
-        self.description_label.setObjectName(
-            "sectionDescription"
-        )
+        self.description_label = QLabel(description, self)
+        self.description_label.setObjectName("sectionDescription")
         self.description_label.setWordWrap(True)
-        self.description_label.setVisible(
-            bool(description)
-        )
 
         text_layout.addWidget(self.title_label)
-        text_layout.addWidget(
-            self.description_label
-        )
+        text_layout.addWidget(self.description_label)
 
-        self.actions_widget = QWidget()
-        self.actions_widget.setObjectName(
-            "sectionHeaderActions"
-        )
+        self.description_label.setVisible(bool(description))
 
-        self.actions_layout = QHBoxLayout(
-            self.actions_widget
-        )
-        self.actions_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
+        self.actions_widget = QWidget(self)
+        self.actions_widget.setObjectName("sectionHeaderActions")
+
+        self.actions_layout = QHBoxLayout(self.actions_widget)
+        self.actions_layout.setContentsMargins(0, 0, 0, 0)
         self.actions_layout.setSpacing(8)
         self.actions_layout.setAlignment(
             Qt.AlignmentFlag.AlignRight
@@ -93,6 +68,4 @@ class SectionHeader(QWidget):
 
     def set_description(self, value: str) -> None:
         self.description_label.setText(value)
-        self.description_label.setVisible(
-            bool(value)
-        )
+        self.description_label.setVisible(bool(value))

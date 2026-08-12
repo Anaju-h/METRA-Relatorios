@@ -1,19 +1,11 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QFrame,
-    QLabel,
-    QSizePolicy,
-    QVBoxLayout,
-    QWidget,
+    QFrame, QLabel, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 
 class MetricCard(QFrame):
-    """
-    Card compacto para indicadores numéricos ou de status.
-    """
-
     def __init__(
         self,
         label: str,
@@ -36,20 +28,21 @@ class MetricCard(QFrame):
         layout.setContentsMargins(18, 15, 18, 15)
         layout.setSpacing(3)
 
-        self.label_widget = QLabel(label)
+        self.label_widget = QLabel(label, self)
         self.label_widget.setObjectName("metricLabel")
 
-        self.value_widget = QLabel(value)
+        self.value_widget = QLabel(value, self)
         self.value_widget.setObjectName("metricValue")
 
-        self.helper_widget = QLabel(helper_text)
+        self.helper_widget = QLabel(helper_text, self)
         self.helper_widget.setObjectName("metricHelper")
         self.helper_widget.setWordWrap(True)
-        self.helper_widget.setVisible(bool(helper_text))
 
         layout.addWidget(self.label_widget)
         layout.addWidget(self.value_widget)
         layout.addWidget(self.helper_widget)
+
+        self.helper_widget.setVisible(bool(helper_text))
 
     def set_value(self, value: str) -> None:
         self.value_widget.setText(str(value))
