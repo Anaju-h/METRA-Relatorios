@@ -211,3 +211,16 @@ As próximas etapas estão concentradas em:
 Projeto desenvolvido como solução para automação e melhoria do processo de preparação de relatórios técnicos de metrologia.
 
 O desenvolvimento busca combinar automação, rastreabilidade, organização das informações e validação humana em um único fluxo de trabalho.
+
+## Documentação
+
+A documentação complementar do projeto está disponível em [`docs/`](docs/).
+
+Ela inclui:
+
+- checkpoints de desenvolvimento;
+- arquitetura;
+- banco de dados;
+- fluxo do sistema;
+- screenshots;
+- materiais de apresentação.
