@@ -5,16 +5,20 @@ from typing import Optional
 @dataclass
 class Characteristic:
     """
-    Resultado técnico ou característica metrológica
-    identificada no relatório original.
+    Característica técnica pertencente a um processo METRA.
 
-    O modelo suporta tanto relatórios CALYPSO quanto
-    resultados do ZEISS INSPECT.
+    Pode ter origem automática, vinculada a uma extração documental,
+    ou origem manual, cadastrada diretamente no processo.
     """
 
-    extraction_id: int
-
+    project_id: int
     name: str
+
+    # Origem: EXTRACTED ou MANUAL.
+    origin: str = "EXTRACTED"
+
+    # Obrigatório apenas para características extraídas.
+    extraction_id: Optional[int] = None
 
     # -------------------------------------------------------------
     # ORGANIZAÇÃO
@@ -27,7 +31,6 @@ class Characteristic:
     # -------------------------------------------------------------
 
     datum: Optional[str] = None
-
     property_name: Optional[str] = None
 
     # -------------------------------------------------------------
@@ -35,15 +38,12 @@ class Characteristic:
     # -------------------------------------------------------------
 
     measured_value: Optional[float] = None
-
     nominal_value: Optional[float] = None
 
     upper_tolerance: Optional[float] = None
-
     lower_tolerance: Optional[float] = None
 
     deviation: Optional[float] = None
-
     unit: Optional[str] = None
 
     # -------------------------------------------------------------
@@ -53,7 +53,6 @@ class Characteristic:
     status: str = "UNKNOWN"
 
     check_value: Optional[str] = None
-
     out_value: Optional[str] = None
 
     # -------------------------------------------------------------
@@ -61,15 +60,11 @@ class Characteristic:
     # -------------------------------------------------------------
 
     confidence: float = 0.0
-
     extraction_method: Optional[str] = None
 
     source_page: Optional[int] = None
-
     raw_text: Optional[str] = None
 
-    # JSON serializado para dados específicos de uma família
-    # documental que não justifiquem uma coluna própria.
     extra_data_json: Optional[str] = None
 
     # -------------------------------------------------------------
@@ -79,5 +74,12 @@ class Characteristic:
     id: Optional[int] = None
 
     created_at: Optional[str] = None
-
     updated_at: Optional[str] = None
+
+    @property
+    def is_manual(self) -> bool:
+        return str(self.origin or "").upper() == "MANUAL"
+
+    @property
+    def is_extracted(self) -> bool:
+        return not self.is_manual

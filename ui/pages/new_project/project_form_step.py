@@ -36,6 +36,8 @@ class ProjectFormStep(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.flow_mode = "documents"
+
         self.setObjectName("pageBackground")
 
         self.build_ui()
@@ -97,13 +99,12 @@ class ProjectFormStep(QWidget):
         self.steps = StepIndicator(
 
             [
-                "Início",
                 "Documentos",
                 "Revisão",
                 "Criar",
             ],
 
-            current_step=3,
+            current_step=2,
         )
 
         layout.addWidget(
@@ -554,7 +555,7 @@ class ProjectFormStep(QWidget):
         )
 
         piece_form.addRow(
-            "Equipamento identificado",
+            "Equipamento",
             equipment_field,
         )
 
@@ -714,6 +715,77 @@ class ProjectFormStep(QWidget):
         self.connect_signals()
 
         self.update_template_information()
+    # =============================================================
+    # MODO DO FLUXO
+    # =============================================================
+
+    def set_flow_mode(
+        self,
+        mode: str,
+    ) -> None:
+        normalized = str(
+            mode
+            or "documents"
+        ).strip().lower()
+
+        self.flow_mode = (
+            "manual"
+            if normalized == "manual"
+            else "documents"
+        )
+
+        if self.flow_mode == "manual":
+            self.header.set_title(
+                "Informações do processo"
+            )
+            self.header.set_subtitle(
+                "Preencha os dados iniciais para estruturar o processo. "
+                "Documentos e informações técnicas poderão ser adicionados "
+                "posteriormente."
+            )
+            self.header.back_button.setText(
+                "← Forma de início"
+            )
+
+            self.steps.set_steps(
+                [
+                    "Informações",
+                    "Criar",
+                ],
+                current_step=0,
+            )
+
+            self.template_source_label.setText(
+                "Selecione o template mais adequado. O modelo Personalizado "
+                "é indicado para casos ainda não mapeados pelo METRA."
+            )
+
+            self.equipment_source_label.setText(
+                "Preenchimento opcional. Informe o equipamento quando ele "
+                "já for conhecido."
+            )
+
+        else:
+            self.header.set_title(
+                "Criar processo"
+            )
+            self.header.set_subtitle(
+                "Revise os dados identificados, complemente as informações "
+                "necessárias e finalize a criação."
+            )
+            self.header.back_button.setText(
+                "← Revisão"
+            )
+
+            self.steps.set_steps(
+                [
+                    "Documentos",
+                    "Revisão",
+                    "Criar",
+                ],
+                current_step=2,
+            )
+
     # =============================================================
     # CONEXÕES
     # =============================================================
@@ -1165,8 +1237,17 @@ class ProjectFormStep(QWidget):
             self.update_template_suggestion()
 
         if process_type == "manual":
+            self.set_flow_mode(
+                "manual"
+            )
+
             self.template_source_label.setText(
-                "Selecionado conforme as informações preenchidas"
+                "Selecione o template mais adequado. O modelo Personalizado "
+                "é indicado para casos ainda não mapeados pelo METRA."
+            )
+        else:
+            self.set_flow_mode(
+                "documents"
             )
 
         self.update_template_information()

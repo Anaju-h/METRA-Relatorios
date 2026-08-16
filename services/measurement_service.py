@@ -96,21 +96,11 @@ class MeasurementService:
                 )
             )
 
-        responsible = str(
+        responsible = self._normalize_optional_text(
             data.get(
-                "responsible",
-                "",
+                "responsible"
             )
-            or ""
-        ).strip()
-
-        if not responsible:
-            raise ValueError(
-                (
-                    "Informe a pessoa responsável "
-                    "pela medição."
-                )
-            )
+        )
 
         sensors = self._normalize_sensors(
             data.get(
@@ -232,10 +222,7 @@ class MeasurementService:
             )
         )
 
-        if (
-            existing is not None
-            and previous_state != new_state
-        ):
+        if previous_state != new_state:
             self.traceability_service.invalidate_technical_approval(
                 project_id=project_id,
                 reason=(

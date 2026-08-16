@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
 )
 
 from ui.components.page_header import PageHeader
-from ui.components.step_indicator import StepIndicator
 
 
 class ProjectStartStep(QWidget):
@@ -50,12 +49,6 @@ class ProjectStartStep(QWidget):
         )
         layout.addWidget(self.page_header)
 
-        self.step_indicator = StepIndicator(
-            ["Início", "Documentos", "Revisão", "Criar"],
-            current_step=0,
-        )
-        layout.addWidget(self.step_indicator)
-
         cards = QHBoxLayout()
         cards.setSpacing(14)
 
@@ -63,8 +56,9 @@ class ProjectStartStep(QWidget):
             icon="PDF",
             title="Importar relatórios",
             description=(
-                "Adicione um ou vários PDFs de uma peça única "
-                "ou de diferentes unidades pertencentes ao mesmo lote."
+                "Adicione um ou vários PDFs. O METRA analisará os documentos, "
+                "identificará o contexto e permitirá revisar os dados antes "
+                "da criação."
             ),
             button_text="Adicionar relatórios PDF",
             button_object_name="primaryButton",
@@ -76,8 +70,9 @@ class ProjectStartStep(QWidget):
             icon="✎",
             title="Criar manualmente",
             description=(
-                "Use este caminho quando o processo precisar ser criado "
-                "antes da medição ou quando ainda não houver relatórios PDF."
+                "Crie a estrutura do processo sem depender de um relatório "
+                "de origem. Documentos e informações técnicas poderão ser "
+                "adicionados posteriormente."
             ),
             button_text="Iniciar sem relatórios",
             button_object_name="secondaryButton",
@@ -120,23 +115,23 @@ class ProjectStartStep(QWidget):
         layout.setSpacing(10)
 
         if recommended:
-            label = QLabel("RECOMENDADO")
+            label = QLabel("RECOMENDADO", card)
             label.setObjectName("recommendedLabel")
             layout.addWidget(label)
 
-        icon_label = QLabel(icon)
+        icon_label = QLabel(icon, card)
         icon_label.setObjectName("startOptionIcon")
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_label.setFixedSize(52, 52)
 
-        title_label = QLabel(title)
+        title_label = QLabel(title, card)
         title_label.setObjectName("formSectionTitle")
 
-        description_label = QLabel(description)
+        description_label = QLabel(description, card)
         description_label.setObjectName("formSectionDescription")
         description_label.setWordWrap(True)
 
-        button = QPushButton(button_text)
+        button = QPushButton(button_text, card)
         button.setObjectName(button_object_name)
         button.setMinimumHeight(42)
         button.setCursor(Qt.CursorShape.PointingHandCursor)

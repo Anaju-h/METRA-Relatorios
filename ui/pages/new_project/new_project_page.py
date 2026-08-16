@@ -11,38 +11,15 @@ from PySide6.QtWidgets import (
 from models.project_draft import ProjectDraft
 from services.batch_analysis_service import BatchAnalysisService
 
-from ui.pages.new_project.project_documents_step import (
-    ProjectDocumentsStep,
-)
-from ui.pages.new_project.project_form_step import (
-    ProjectFormStep,
-)
-from ui.pages.new_project.project_review_step import (
-    ProjectReviewStep,
-)
-from ui.pages.new_project.start_step import (
-    ProjectStartStep,
-)
+from ui.pages.new_project.project_documents_step import ProjectDocumentsStep
+from ui.pages.new_project.project_form_step import ProjectFormStep
+from ui.pages.new_project.project_review_step import ProjectReviewStep
+from ui.pages.new_project.start_step import ProjectStartStep
 
 
 class NewProjectPage(QWidget):
-    """
-    Controlador do fluxo de criação de processos.
-
-    As etapas visuais ficam separadas em componentes próprios,
-    enquanto esta classe coordena a navegação, a análise dos PDFs
-    e o envio dos dados ao MainWindow.
-    """
-
     back_requested = Signal()
-
-    # Mantém compatibilidade com o MainWindow atual:
-    # 1º argumento: dados do formulário;
-    # 2º argumento: ProjectDraft ou None.
-    create_requested = Signal(
-        dict,
-        object,
-    )
+    create_requested = Signal(dict, object)
 
     def __init__(
         self,
@@ -51,25 +28,16 @@ class NewProjectPage(QWidget):
         super().__init__(parent)
 
         self.batch_service = BatchAnalysisService()
-
         self.current_draft: ProjectDraft | None = None
+        self.current_flow: str | None = None
 
         self._build_ui()
         self._connect_signals()
-
         self.show_start()
-    # =============================================================
-    # INTERFACE
-    # =============================================================
 
     def _build_ui(self) -> None:
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
+        root_layout.setContentsMargins(0, 0, 0, 0)
 
         self.stack = QStackedWidget()
 
@@ -78,29 +46,14 @@ class NewProjectPage(QWidget):
         self.review_page = ProjectReviewStep()
         self.form_page = ProjectFormStep()
 
-        self.stack.addWidget(
-            self.start_page
-        )
-        self.stack.addWidget(
-            self.documents_page
-        )
-        self.stack.addWidget(
-            self.review_page
-        )
-        self.stack.addWidget(
-            self.form_page
-        )
+        self.stack.addWidget(self.start_page)
+        self.stack.addWidget(self.documents_page)
+        self.stack.addWidget(self.review_page)
+        self.stack.addWidget(self.form_page)
 
-        root_layout.addWidget(
-            self.stack
-        )
-
-    # =============================================================
-    # CONEXÕES
-    # =============================================================
+        root_layout.addWidget(self.stack)
 
     def _connect_signals(self) -> None:
-        # Etapa inicial
         self.start_page.back_requested.connect(
             self.back_requested.emit
         )
@@ -111,7 +64,6 @@ class NewProjectPage(QWidget):
             self.start_manual_flow
         )
 
-        # Documentos
         self.documents_page.back_requested.connect(
             self.show_start
         )
@@ -122,7 +74,6 @@ class NewProjectPage(QWidget):
             self.analyze_documents
         )
 
-        # Revisão
         self.review_page.back_requested.connect(
             self.show_documents
         )
@@ -133,147 +84,96 @@ class NewProjectPage(QWidget):
             self.continue_to_form
         )
 
-        # Formulário final
         self.form_page.back_requested.connect(
             self.return_from_form
         )
         self.form_page.create_requested.connect(
             self.handle_create_request
         )
-    # =============================================================
-    # NAVEGAÇÃO
-    # =============================================================
 
-    def show_start(
-        self,
-    ) -> None:
-        self.stack.setCurrentWidget(
-            self.start_page
-        )
+    def show_start(self) -> None:
+        self.current_flow = None
+        self.stack.setCurrentWidget(self.start_page)
 
-    def start_documents_flow(
-        self,
-    ) -> None:
+    def start_documents_flow(self) -> None:
+        self.current_flow = "documents"
         self.current_draft = None
 
         self.documents_page.reset_step()
-
         self.review_page.reset_step()
-
         self.form_page.reset_step()
+        self.form_page.set_flow_mode("documents")
 
-        self.stack.setCurrentWidget(
-            self.documents_page
-        )
+        self.stack.setCurrentWidget(self.documents_page)
 
-    def start_manual_flow(
-        self,
-    ) -> None:
+    def start_manual_flow(self) -> None:
+        self.current_flow = "manual"
         self.current_draft = ProjectDraft(
             process_type="manual"
         )
 
         self.review_page.reset_step()
-
         self.form_page.reset_step()
+        self.form_page.set_flow_mode("manual")
+        self.form_page.set_draft(self.current_draft)
 
-        self.form_page.set_draft(
-            self.current_draft
-        )
+        self.stack.setCurrentWidget(self.form_page)
 
-        self.stack.setCurrentWidget(
-            self.form_page
-        )
+    def show_documents(self) -> None:
+        self.current_flow = "documents"
+        self.stack.setCurrentWidget(self.documents_page)
 
-    def show_documents(
-        self,
-    ) -> None:
-        self.stack.setCurrentWidget(
-            self.documents_page
-        )
+    def show_review(self) -> None:
+        self.current_flow = "documents"
+        self.stack.setCurrentWidget(self.review_page)
 
-    def show_review(
-        self,
-    ) -> None:
-        self.stack.setCurrentWidget(
-            self.review_page
-        )
+    def show_form(self) -> None:
+        self.stack.setCurrentWidget(self.form_page)
 
-    def show_form(
-        self,
-    ) -> None:
-        self.stack.setCurrentWidget(
-            self.form_page
-        )
-
-    def restart_document_flow(
-        self,
-    ) -> None:
+    def restart_document_flow(self) -> None:
+        self.current_flow = "documents"
         self.current_draft = None
 
         self.review_page.reset_step()
-
         self.form_page.reset_step()
+        self.form_page.set_flow_mode("documents")
 
-        self.stack.setCurrentWidget(
-            self.documents_page
-        )
+        self.stack.setCurrentWidget(self.documents_page)
 
-    def continue_to_form(
-        self,
-    ) -> None:
+    def continue_to_form(self) -> None:
         if self.current_draft is None:
             QMessageBox.warning(
                 self,
                 "Análise indisponível",
-                (
-                    "Não há um rascunho de processo disponível "
-                    "para continuar."
-                ),
+                "Não há um rascunho de processo disponível para continuar.",
             )
             return
 
+        self.current_flow = "documents"
         self.form_page.reset_step()
+        self.form_page.set_flow_mode("documents")
+        self.form_page.set_draft(self.current_draft)
 
-        self.form_page.set_draft(
-            self.current_draft
-        )
+        self.stack.setCurrentWidget(self.form_page)
 
-        self.stack.setCurrentWidget(
-            self.form_page
-        )
-
-    def return_from_form(
-        self,
-    ) -> None:
-        if (
-            self.current_draft is not None
-            and self.current_draft.is_manual
-        ):
+    def return_from_form(self) -> None:
+        if self.current_flow == "manual":
             self.show_start()
             return
 
         self.show_review()
-    # =============================================================
-    # ANÁLISE DOS DOCUMENTOS
-    # =============================================================
 
     def analyze_documents(
         self,
         source_paths: list[str],
         process_type: str,
     ) -> None:
-        self.documents_page.set_analyzing(
-            True
-        )
+        self.documents_page.set_analyzing(True)
 
         try:
-            draft = (
-                self.batch_service
-                .analyze_files(
-                    source_paths=source_paths,
-                    process_type=process_type,
-                )
+            draft = self.batch_service.analyze_files(
+                source_paths=source_paths,
+                process_type=process_type,
             )
 
         except Exception as error:
@@ -281,31 +181,20 @@ class NewProjectPage(QWidget):
                 self,
                 "Erro na análise",
                 (
-                    "Não foi possível concluir a análise "
-                    "dos documentos.\n\n"
+                    "Não foi possível concluir a análise dos documentos.\n\n"
                     f"Detalhes: {error}"
                 ),
             )
             return
 
         finally:
-            self.documents_page.set_analyzing(
-                False
-            )
+            self.documents_page.set_analyzing(False)
 
+        self.current_flow = "documents"
         self.current_draft = draft
 
-        self.review_page.set_draft(
-            draft
-        )
-
-        self.stack.setCurrentWidget(
-            self.review_page
-        )
-
-    # =============================================================
-    # CRIAÇÃO DO PROCESSO
-    # =============================================================
+        self.review_page.set_draft(draft)
+        self.stack.setCurrentWidget(self.review_page)
 
     def handle_create_request(
         self,
@@ -313,16 +202,14 @@ class NewProjectPage(QWidget):
     ) -> None:
         if (
             self.current_draft is not None
-            and self.current_draft.part_compatibility
-            == "incompatible"
+            and self.current_draft.part_compatibility == "incompatible"
         ):
             confirmation = QMessageBox.question(
                 self,
                 "Documentos possivelmente incompatíveis",
                 (
-                    "O sistema identificou documentos que podem "
-                    "pertencer a peças diferentes.\n\n"
-                    "Deseja criar o processo mesmo assim?"
+                    "O sistema identificou documentos que podem pertencer "
+                    "a peças diferentes.\n\nDeseja criar o processo mesmo assim?"
                 ),
                 (
                     QMessageBox.StandardButton.Yes
@@ -331,38 +218,27 @@ class NewProjectPage(QWidget):
                 QMessageBox.StandardButton.No,
             )
 
-            if (
-                confirmation
-                != QMessageBox.StandardButton.Yes
-            ):
+            if confirmation != QMessageBox.StandardButton.Yes:
                 return
 
-        self.form_page.set_creating(
-            True
-        )
+        self.form_page.set_creating(True)
 
         try:
             self.create_requested.emit(
                 data,
                 self.current_draft,
             )
-
         finally:
-            self.form_page.set_creating(
-                False
-            )
-    # =============================================================
-    # ESTADO DA PÁGINA
-    # =============================================================
+            self.form_page.set_creating(False)
 
-    def reset_page(
-        self,
-    ) -> None:
+    def reset_page(self) -> None:
         self.current_draft = None
+        self.current_flow = None
 
         self.documents_page.reset_step()
         self.review_page.reset_step()
         self.form_page.reset_step()
+        self.form_page.set_flow_mode("documents")
 
         self.show_start()
 
@@ -377,10 +253,12 @@ class NewProjectPage(QWidget):
             self.form_page.reset_step()
             return
 
-        self.review_page.set_draft(
-            draft
-        )
+        if draft.is_manual:
+            self.current_flow = "manual"
+            self.form_page.set_flow_mode("manual")
+        else:
+            self.current_flow = "documents"
+            self.form_page.set_flow_mode("documents")
 
-        self.form_page.set_draft(
-            draft
-        )
+        self.review_page.set_draft(draft)
+        self.form_page.set_draft(draft)

@@ -20,6 +20,9 @@ from PySide6.QtWidgets import (
 from services.final_report_generator import (
     FinalReportGenerator,
 )
+from services.technical_control_service import (
+    TechnicalControlService,
+)
 from services.pdf_service import PDFService
 from services.project_service import ProjectService
 from services.report_extraction_service import (
@@ -94,7 +97,9 @@ class MainWindow(QMainWindow):
 
         self._loaded_page_projects: dict[str, int | str] = {}
 
+        # =========================================================
         # SERVIÇOS
+        # =========================================================
 
         self.project_service = (
             ProjectService()
@@ -112,24 +117,36 @@ class MainWindow(QMainWindow):
             FinalReportGenerator()
         )
 
+        self.technical_control_service = (
+            TechnicalControlService()
+        )
+
         self.report_version_service = (
             ReportVersionService()
         )
 
+        # =========================================================
         # PÁGINAS
+        # =========================================================
+        #
+        # Apenas a Home é criada durante a inicialização da janela.
+        # As demais páginas são construídas somente quando o usuário
+        # acessa cada módulo. Isso reduz significativamente o tempo
+        # entre executar o programa e a janela aparecer.
+        # =========================================================
 
         self.pages = QStackedWidget()
         self.pages.setMinimumSize(0, 0)
         self.pages.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Ignored,
         )
 
         self.home_page = HomePage()
         self.home_page.setMinimumSize(0, 0)
         self.home_page.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Ignored,
         )
         self.pages.addWidget(self.home_page)
 
@@ -147,7 +164,9 @@ class MainWindow(QMainWindow):
         self.final_report_page = None
         self.final_report_preview_page = None
 
+        # =========================================================
         # ESTRUTURA GLOBAL
+        # =========================================================
 
         self.app_header = AppHeader()
         self.app_sidebar = AppSidebar()
@@ -180,7 +199,9 @@ class MainWindow(QMainWindow):
 
         self.show_home()
 
+    # =============================================================
     # NAVEGAÇÃO GLOBAL
+    # =============================================================
 
     def connect_sidebar_signals(self) -> None:
         self.app_sidebar.home_requested.connect(
@@ -237,7 +258,9 @@ class MainWindow(QMainWindow):
             self.current_project is not None
         )
 
+    # =============================================================
     # SINAIS
+    # =============================================================
 
     def connect_signals(self) -> None:
         self.home_page.new_project_requested.connect(
@@ -252,34 +275,29 @@ class MainWindow(QMainWindow):
             self.show_processes
         )
 
-    # CRIAÇÃO DAS PÁGINAS
+    # =============================================================
+    # CRIAÇÃO PREGUIÇOSA DAS PÁGINAS
+    # =============================================================
 
-    def _create_page(
-        self,
-        page_class,
-    ):
+    def _create_page(self, page_class):
         """
-        Cria a página e a adiciona ao QStackedWidget.
-
-        A geometria e a pintura ficam sob responsabilidade normal
-        do Qt, sem resize, repaint, processEvents ou ativação manual
-        de layouts.
+        Cria a página sem permitir que o tamanho mínimo dela altere
+        a geometria da janela na primeira abertura.
         """
         page = page_class()
 
-        page.setMinimumSize(
-            0,
-            0,
-        )
-
+        page.setMinimumSize(0, 0)
         page.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Ignored,
         )
 
-        self.pages.addWidget(
-            page
-        )
+        self.pages.addWidget(page)
+
+        # Mantém o stack preso à área disponível do corpo da aplicação,
+        # em vez de adotar o sizeHint da página recém-adicionada.
+        self.pages.setMinimumSize(0, 0)
+        self.pages.updateGeometry()
 
         return page
 
@@ -293,10 +311,12 @@ class MainWindow(QMainWindow):
         force_reload: bool = False,
     ) -> None:
         """
-        Atualiza os dados da página e, somente depois, a exibe.
+        Evita recarregar os mesmos dados em toda troca de tela.
 
-        Não há manipulação manual de geometria nem processamento
-        forçado de eventos durante a montagem da interface.
+        A página só executa o carregamento completo quando:
+        - é aberta pela primeira vez;
+        - o projeto mudou;
+        - foi solicitado force_reload.
         """
         if self.current_project is None:
             return
@@ -307,19 +327,21 @@ class MainWindow(QMainWindow):
             else self.current_project.report_id
         )
 
-        QApplication.setOverrideCursor(
-            Qt.CursorShape.WaitCursor
+        already_loaded = (
+            self._loaded_page_projects.get(cache_key)
+            == project_key
         )
 
-        try:
-            loader()
+        if not already_loaded or force_reload:
+            QApplication.setOverrideCursor(
+                Qt.CursorShape.WaitCursor
+            )
 
-            self._loaded_page_projects[
-                cache_key
-            ] = project_key
-
-        finally:
-            QApplication.restoreOverrideCursor()
+            try:
+                loader()
+                self._loaded_page_projects[cache_key] = project_key
+            finally:
+                QApplication.restoreOverrideCursor()
 
         self.set_current_page(
             page,
@@ -343,15 +365,19 @@ class MainWindow(QMainWindow):
             self.processes_page = self._create_page(
                 ProcessesPage
             )
+
             self.processes_page.back_requested.connect(
                 self.show_home
             )
+
             self.processes_page.open_project_requested.connect(
                 self.open_project
             )
+
             self.processes_page.new_project_requested.connect(
                 self.show_new_project
             )
+
             self.processes_page.refresh_requested.connect(
                 self.refresh_processes_and_home
             )
@@ -504,17 +530,15 @@ class MainWindow(QMainWindow):
             self.final_report_preview_page.back_requested.connect(
                 self.show_final_report
             )
-            self.final_report_preview_page.regenerate_requested.connect(
-                self.regenerate_final_report
-            )
             self.final_report_preview_page.approve_export_requested.connect(
                 self.approve_and_export_final_report
             )
 
         return self.final_report_preview_page
 
+    # =============================================================
     # HOME
-
+    # =============================================================
 
     def show_home(self) -> None:
         self.current_project = None
@@ -555,11 +579,31 @@ class MainWindow(QMainWindow):
                 ),
             )
 
+    # =============================================================
     # CENTRAL DE PROCESSOS
+    # =============================================================
 
     def show_processes(self) -> None:
+        """
+        Abre a central global de processos.
+
+        Entrar nesta área encerra o contexto do processo que estava
+        aberto. Assim, os módulos técnicos da sidebar voltam a ficar
+        bloqueados até que um processo seja aberto novamente.
+        """
+        self.current_project = None
+        self.current_document_id = None
+
+        self.last_final_report_payload = None
+        self.last_generated_report_path = None
+
+        self._loaded_page_projects.clear()
+
+        self.update_project_navigation()
+
         try:
             page = self.ensure_processes_page()
+
             page.set_projects(
                 self.project_service.get_all_projects()
             )
@@ -595,7 +639,9 @@ class MainWindow(QMainWindow):
                 str(error),
             )
 
+    # =============================================================
     # NOVO PROCESSO
+    # =============================================================
 
     def show_new_project(self) -> None:
         page = self.ensure_new_project_page()
@@ -802,7 +848,9 @@ class MainWindow(QMainWindow):
                 ),
             )
 
+    # =============================================================
     # ABRIR PROCESSO
+    # =============================================================
 
     def open_project(
         self,
@@ -843,7 +891,9 @@ class MainWindow(QMainWindow):
             project
         )
 
+    # =============================================================
     # VISÃO GERAL
+    # =============================================================
 
     def show_overview(
         self,
@@ -893,7 +943,9 @@ class MainWindow(QMainWindow):
             self.current_project
         )
 
+    # =============================================================
     # DOCUMENTOS
+    # =============================================================
 
     def show_documents(
         self,
@@ -1080,7 +1132,9 @@ class MainWindow(QMainWindow):
             self.current_project
         )
 
+    # =============================================================
     # REVISÃO
+    # =============================================================
 
     def show_extraction_review(
         self,
@@ -1138,8 +1192,9 @@ class MainWindow(QMainWindow):
 
         self.show_documents()
 
+    # =============================================================
     # CARACTERÍSTICAS
-
+    # =============================================================
 
     def show_characteristics(
         self,
@@ -1164,7 +1219,9 @@ class MainWindow(QMainWindow):
                 str(error),
             )
 
+    # =============================================================
     # MEDIÇÃO
+    # =============================================================
 
     def show_measurement(
         self,
@@ -1189,7 +1246,9 @@ class MainWindow(QMainWindow):
                 str(error),
             )
 
+    # =============================================================
     # IMAGENS
+    # =============================================================
 
     def show_images(
         self,
@@ -1240,7 +1299,9 @@ class MainWindow(QMainWindow):
             "images",
         )
 
+    # =============================================================
     # CONTROLE TÉCNICO
+    # =============================================================
 
     def show_technical_control(
         self,
@@ -1265,8 +1326,9 @@ class MainWindow(QMainWindow):
                 str(error),
             )
 
+    # =============================================================
     # RELATÓRIO FINAL
-
+    # =============================================================
 
     def show_final_report(
         self,
@@ -1283,6 +1345,7 @@ class MainWindow(QMainWindow):
                 navigation_key="final_report",
                 cache_key="final_report",
                 loader=lambda: page.set_project(project),
+                force_reload=True,
             )
         except Exception as error:
             QMessageBox.critical(
@@ -1389,6 +1452,15 @@ class MainWindow(QMainWindow):
                 self.ensure_final_report_preview_page()
             )
 
+            preview_page.set_export_allowed(
+                bool(
+                    project.id is not None
+                    and self.technical_control_service.can_issue_report(
+                        project.id
+                    )
+                )
+            )
+
             preview_page.set_pdf(
                 generated_path
             )
@@ -1414,108 +1486,15 @@ class MainWindow(QMainWindow):
             "final_report",
         )
 
-    def regenerate_final_report(
-        self,
-    ) -> None:
-        """
-        Atualiza o contexto e recria o mesmo PDF temporário.
-        """
-        if (
-            self.last_final_report_payload is None
-            or self.last_generated_report_path is None
-        ):
-            self.show_final_report()
-            return
-
-        project = (
-            self.last_final_report_payload.get(
-                "project"
-            )
-        )
-
-        sections = (
-            self.last_final_report_payload.get(
-                "sections",
-                {},
-            )
-        )
-
-        if project is None:
-            self.show_final_report()
-            return
-
-        preview_page = (
-            self.ensure_final_report_preview_page()
-        )
-
-        preview_page.set_exporting(
-            True
-        )
-
-        try:
-            report_page = (
-                self.ensure_final_report_page()
-            )
-
-            report_page.set_project(
-                project
-            )
-
-            refreshed_context = (
-                report_page.current_context
-            )
-
-            generated_path = (
-                self.final_report_generator
-                .generate(
-                    project=project,
-                    context=refreshed_context,
-                    sections=sections,
-                    output_path=(
-                        self.last_generated_report_path
-                    ),
-                )
-            )
-
-            self.last_final_report_payload[
-                "context"
-            ] = refreshed_context
-
-            self.last_generated_report_path = (
-                generated_path
-            )
-
-            preview_page.set_pdf(
-                generated_path
-            )
-
-        except Exception as error:
-            QMessageBox.critical(
-                self,
-                "Erro ao gerar novamente",
-                (
-                    "A pré-visualização não pôde ser "
-                    f"atualizada.\n\nDetalhes: {error}"
-                ),
-            )
-            return
-
-        finally:
-            preview_page.set_exporting(
-                False
-            )
-
-        self.set_current_page(
-            preview_page,
-            "final_report",
-        )
-
     def approve_and_export_final_report(
         self,
     ) -> None:
         """
-        Aprova a pré-visualização, exporta o PDF definitivo
-        e registra a emissão oficial no histórico de versões.
+        Exporta a pré-visualização como relatório oficial.
+
+        A emissão somente é permitida com Controle Técnico aprovado.
+        A versão emitida é registrada no histórico e o processo avança
+        para a próxima versão de trabalho.
         """
         if (
             self.last_final_report_payload is None
@@ -1527,7 +1506,7 @@ class MainWindow(QMainWindow):
                 "Pré-visualização indisponível",
                 (
                     "Gere uma pré-visualização válida "
-                    "antes de aprovar e exportar."
+                    "antes de exportar o relatório."
                 ),
             )
             return
@@ -1549,6 +1528,28 @@ class MainWindow(QMainWindow):
                     "Não foi possível identificar "
                     "o processo atual."
                 ),
+            )
+            return
+
+        if not self.technical_control_service.can_issue_report(
+            project.id
+        ):
+            QMessageBox.warning(
+                self,
+                "Controle técnico pendente",
+                (
+                    "A pré-visualização pode ser consultada normalmente, "
+                    "mas a exportação oficial exige Controle Técnico "
+                    "com status 'Aprovado' e responsáveis de elaboração "
+                    "e aprovação preenchidos."
+                ),
+            )
+
+            preview_page = (
+                self.ensure_final_report_preview_page()
+            )
+            preview_page.set_export_allowed(
+                False
             )
             return
 
@@ -1599,7 +1600,7 @@ class MainWindow(QMainWindow):
 
         output_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Aprovar e exportar relatório",
+            "Exportar relatório",
             str(initial_path),
             "Arquivo PDF (*.pdf)",
         )
@@ -1642,15 +1643,13 @@ class MainWindow(QMainWindow):
 
             file_was_created = True
 
-            context = (
-                self.last_final_report_payload.get(
-                    "context",
-                    {},
+            # Busca o controle novamente no banco para registrar a
+            # emissão com o estado técnico realmente aprovado.
+            technical_control = (
+                self.technical_control_service
+                .get_control(
+                    project.id
                 )
-            )
-
-            technical_control = context.get(
-                "technical_control"
             )
 
             emission = (
@@ -1670,7 +1669,6 @@ class MainWindow(QMainWindow):
             ):
                 try:
                     destination.unlink()
-
                 except OSError:
                     pass
 
@@ -1702,8 +1700,8 @@ class MainWindow(QMainWindow):
             self,
             "Relatório emitido",
             (
-                "O relatório foi aprovado, exportado e "
-                "registrado no histórico de versões.\n\n"
+                "O relatório foi exportado e registrado "
+                "no histórico de versões.\n\n"
                 f"Versão emitida: {emission.version}\n"
                 f"Próxima versão de trabalho: {project.version}\n\n"
                 f"{destination}"
@@ -1712,7 +1710,9 @@ class MainWindow(QMainWindow):
 
         self.show_final_report()
 
+    # =============================================================
     # ARQUIVO
+    # =============================================================
 
     def sanitize_file_name(
         self,

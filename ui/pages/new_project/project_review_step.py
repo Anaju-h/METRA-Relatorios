@@ -94,13 +94,12 @@ class ProjectReviewStep(QWidget):
         self.step_indicator = StepIndicator(
 
             [
-                "Início",
                 "Documentos",
                 "Revisão",
                 "Criar",
             ],
 
-            current_step=2,
+            current_step=1,
         )
 
         layout.addWidget(self.step_indicator)
@@ -1250,10 +1249,6 @@ class ProjectReviewStep(QWidget):
             child_layout = item.layout()
 
             if widget is not None:
-                widget.setParent(
-                    None
-                )
-
                 widget.deleteLater()
 
             elif child_layout is not None:

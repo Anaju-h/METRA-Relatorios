@@ -34,12 +34,9 @@ class FinalReportPage(QWidget):
     """
     Preparação e validação do relatório técnico.
 
-    Esta tela reúne o contexto do processo, valida os dados,
-    permite escolher o conteúdo do documento e solicita a
-    pré-visualização antes da aprovação e exportação.
-
-    A escolha realizada aqui representa o conteúdo que deverá
-    compor também o documento final aprovado.
+    Esta tela não salva o PDF definitivo. Ela reúne o contexto,
+    valida os dados, permite escolher as seções e solicita a geração
+    de uma pré-visualização temporária.
     """
 
     back_requested = Signal()
@@ -50,9 +47,10 @@ class FinalReportPage(QWidget):
     images_requested = Signal()
     technical_control_requested = Signal()
 
+    # Mantido para compatibilidade com o MainWindow atual.
+    # O MainWindow será refatorado para interpretar este sinal
+    # como solicitação de pré-visualização.
     generate_requested = Signal(dict)
-
-    VERSION_SECTION_KEY = "show_version"
 
     def __init__(
         self,
@@ -64,7 +62,11 @@ class FinalReportPage(QWidget):
         self.service = FinalReportService()
 
         self.current_context: dict[str, Any] = {}
+
         self.section_inputs: dict[str, QCheckBox] = {}
+        self.section_frames: dict[str, QFrame] = {}
+        self.section_badges: dict[str, QLabel] = {}
+        self.section_meta_labels: dict[str, QLabel] = {}
 
         self.build_ui()
 
@@ -74,58 +76,33 @@ class FinalReportPage(QWidget):
 
     def build_ui(self) -> None:
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
+        root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(
-            QFrame.Shape.NoFrame
-        )
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
 
         scroll_content = QWidget()
-        scroll_content.setObjectName(
-            "pageBackground"
-        )
+        scroll_content.setObjectName("pageBackground")
 
-        scroll_layout = QVBoxLayout(
-            scroll_content
-        )
-        scroll_layout.setContentsMargins(
-            34,
-            22,
-            34,
-            34,
-        )
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(34, 22, 34, 34)
         scroll_layout.setSpacing(0)
 
         content = QWidget()
-        content.setObjectName(
-            "pageContent"
-        )
+        content.setObjectName("pageContent")
         content.setMaximumWidth(1240)
         content.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Minimum,
         )
 
-        content_layout = QVBoxLayout(
-            content
-        )
-        content_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(18)
 
         # ---------------------------------------------------------
@@ -135,24 +112,20 @@ class FinalReportPage(QWidget):
         self.page_header = PageHeader(
             title="Relatório final",
             subtitle=(
-                "Valide o processo, defina o conteúdo do relatório "
-                "e gere uma pré-visualização antes da aprovação "
-                "e exportação."
+                "Valide o processo, selecione o conteúdo e gere uma "
+                "pré-visualização antes da aprovação e exportação."
             ),
             metadata="-",
             back_text="← Visão geral",
         )
-
         self.page_header.back_button.clicked.connect(
             self.back_requested.emit
         )
 
         self.refresh_button = QPushButton(
-            "Atualizar validação"
+            "Atualizar conteúdo"
         )
-        self.refresh_button.setObjectName(
-            "secondaryButton"
-        )
+        self.refresh_button.setObjectName("secondaryButton")
         self.refresh_button.setMinimumHeight(40)
         self.refresh_button.setCursor(
             Qt.CursorShape.PointingHandCursor
@@ -174,19 +147,10 @@ class FinalReportPage(QWidget):
         # ---------------------------------------------------------
 
         context_card = QFrame()
-        context_card.setObjectName(
-            "formCard"
-        )
+        context_card.setObjectName("formCard")
 
-        context_layout = QGridLayout(
-            context_card
-        )
-        context_layout.setContentsMargins(
-            20,
-            16,
-            20,
-            16,
-        )
+        context_layout = QGridLayout(context_card)
+        context_layout.setContentsMargins(20, 16, 20, 16)
         context_layout.setHorizontalSpacing(32)
         context_layout.setVerticalSpacing(7)
 
@@ -196,24 +160,21 @@ class FinalReportPage(QWidget):
             0,
             0,
         )
-
         self.template_version_value = self._add_data_field(
             context_layout,
             "Versão do template",
             0,
             1,
         )
-
         self.scope_value = self._add_data_field(
             context_layout,
             "Escopo",
             0,
             2,
         )
-
         self.output_value = self._add_data_field(
             context_layout,
-            "Fluxo do documento",
+            "Saída desta etapa",
             0,
             3,
         )
@@ -224,9 +185,7 @@ class FinalReportPage(QWidget):
                 1,
             )
 
-        content_layout.addWidget(
-            context_card
-        )
+        content_layout.addWidget(context_card)
 
         # ---------------------------------------------------------
         # SITUAÇÃO GERAL
@@ -264,9 +223,7 @@ class FinalReportPage(QWidget):
         self.general_status_description.setObjectName(
             "cardDescription"
         )
-        self.general_status_description.setWordWrap(
-            True
-        )
+        self.general_status_description.setWordWrap(True)
 
         general_text.addWidget(
             self.general_status_title
@@ -306,44 +263,32 @@ class FinalReportPage(QWidget):
         (
             documents_card,
             self.documents_value,
-        ) = self.create_summary_card(
-            "Documentos"
-        )
+        ) = self.create_summary_card("Documentos")
 
         (
             units_card,
             self.units_value,
-        ) = self.create_summary_card(
-            "Unidades"
-        )
+        ) = self.create_summary_card("Unidades")
 
         (
             characteristics_card,
             self.characteristics_value,
-        ) = self.create_summary_card(
-            "Características"
-        )
+        ) = self.create_summary_card("Características")
 
         (
             approved_card,
             self.approved_value,
-        ) = self.create_summary_card(
-            "Conformes"
-        )
+        ) = self.create_summary_card("Conformes")
 
         (
             rejected_card,
             self.rejected_value,
-        ) = self.create_summary_card(
-            "Não conformes"
-        )
+        ) = self.create_summary_card("Não conformes")
 
         (
             images_card,
             self.images_value,
-        ) = self.create_summary_card(
-            "Imagens"
-        )
+        ) = self.create_summary_card("Imagens")
 
         indicator_cards = [
             documents_card,
@@ -354,9 +299,7 @@ class FinalReportPage(QWidget):
             images_card,
         ]
 
-        for column, card in enumerate(
-            indicator_cards
-        ):
+        for column, card in enumerate(indicator_cards):
             indicators_layout.addWidget(
                 card,
                 0,
@@ -376,9 +319,7 @@ class FinalReportPage(QWidget):
         # ---------------------------------------------------------
 
         validation_card = QFrame()
-        validation_card.setObjectName(
-            "formCard"
-        )
+        validation_card.setObjectName("formCard")
 
         validation_layout = QVBoxLayout(
             validation_card
@@ -392,23 +333,20 @@ class FinalReportPage(QWidget):
         validation_layout.setSpacing(14)
 
         validation_title = QLabel(
-            "Validação do processo"
+            "Conteúdo disponível"
         )
         validation_title.setObjectName(
             "formSectionTitle"
         )
 
         validation_description = QLabel(
-            "Os itens obrigatórios devem ser concluídos antes da "
-            "pré-visualização. Itens opcionais podem enriquecer "
-            "o relatório."
+            "Os módulos disponíveis podem compor a pré-visualização. "
+            "Apenas a emissão oficial depende da aprovação do Controle Técnico."
         )
         validation_description.setObjectName(
             "formSectionDescription"
         )
-        validation_description.setWordWrap(
-            True
-        )
+        validation_description.setWordWrap(True)
 
         self.validation_container = QWidget()
 
@@ -423,9 +361,7 @@ class FinalReportPage(QWidget):
         )
         self.validation_items_layout.setSpacing(10)
 
-        validation_layout.addWidget(
-            validation_title
-        )
+        validation_layout.addWidget(validation_title)
         validation_layout.addWidget(
             validation_description
         )
@@ -438,176 +374,196 @@ class FinalReportPage(QWidget):
         )
 
         # ---------------------------------------------------------
-        # CONTEÚDO DO RELATÓRIO
+        # SELEÇÃO DE CONTEÚDO
         # ---------------------------------------------------------
 
         sections_card = QFrame()
-        sections_card.setObjectName(
-            "formCard"
-        )
+        sections_card.setObjectName("finalReportContentCard")
 
-        sections_layout = QVBoxLayout(
-            sections_card
-        )
-        sections_layout.setContentsMargins(
-            20,
-            17,
-            20,
-            17,
-        )
-        sections_layout.setSpacing(15)
+        sections_layout = QVBoxLayout(sections_card)
+        sections_layout.setContentsMargins(20, 18, 20, 18)
+        sections_layout.setSpacing(12)
 
         sections_title = QLabel(
-            "Conteúdo do relatório"
+            "Conteúdo disponível no processo"
         )
         sections_title.setObjectName(
             "formSectionTitle"
         )
 
         sections_description = QLabel(
-            "Escolha as informações que serão incluídas no relatório. "
-            "A mesma seleção será utilizada na pré-visualização e no "
-            "documento final. Seções sem dados permanecem indisponíveis."
+            "Selecione as seções que deseja incluir no relatório. "
+            "Itens sem informações continuam visíveis, mas ficam "
+            "indisponíveis até que exista conteúdo."
         )
         sections_description.setObjectName(
             "formSectionDescription"
         )
-        sections_description.setWordWrap(
-            True
+        sections_description.setWordWrap(True)
+
+        sections_layout.addWidget(sections_title)
+        sections_layout.addWidget(sections_description)
+
+        self.sections_container = QWidget()
+        self.sections_container.setObjectName(
+            "finalReportSectionsContainer"
         )
 
-        sections_layout.addWidget(
-            sections_title
+        self.sections_list_layout = QVBoxLayout(
+            self.sections_container
         )
-        sections_layout.addWidget(
-            sections_description
+        self.sections_list_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
         )
-
-        sections_grid = QGridLayout()
-        sections_grid.setHorizontalSpacing(14)
-        sections_grid.setVerticalSpacing(12)
+        self.sections_list_layout.setSpacing(0)
 
         section_definitions = [
             (
                 "process_summary",
+                "▤",
                 "Resumo executivo",
                 (
-                    "Identificação, imagem principal, template, "
-                    "equipamento e indicadores gerais."
+                    "Identificação do processo, template, equipamento "
+                    "e indicadores gerais."
                 ),
+                None,
             ),
             (
                 "documents",
+                "▧",
                 "Documentos e unidades",
                 (
                     "Arquivos de origem, páginas e identificações "
                     "das unidades analisadas."
                 ),
+                "documents",
             ),
             (
                 "measurement",
+                "⌁",
                 "Informações da medição",
                 (
                     "Responsável, equipamento, sensores, alinhamento, "
                     "fixação e instruções."
                 ),
+                "measurement",
             ),
             (
                 "characteristics",
+                "≡",
                 "Resultados metrológicos",
                 (
                     "Resultados, tolerâncias, estatísticas, gráficos "
                     "e interpretação por característica."
                 ),
+                "characteristics",
             ),
             (
                 "images",
+                "▣",
                 "Imagens técnicas",
                 (
                     "Fotografias, CAD, renders, setup, fixação "
                     "e evidências anotadas."
                 ),
+                "images",
             ),
             (
                 "observations",
+                "✎",
                 "Observações técnicas",
                 (
                     "Condições especiais, ressalvas e notas "
                     "da elaboração ou revisão."
                 ),
+                None,
             ),
             (
                 "technical_control",
+                "◇",
                 "Elaboração e aprovação",
                 (
                     "Responsáveis, datas, situação da revisão "
-                    "e controle técnico."
+                    "e Controle Técnico."
                 ),
-            ),
-            (
-                self.VERSION_SECTION_KEY,
-                "Identificação da versão",
-                (
-                    "Exibe a versão do relatório no documento entregue. "
-                    "A rastreabilidade interna continua sendo mantida "
-                    "mesmo quando esta opção estiver desmarcada."
-                ),
+                "technical_control",
             ),
         ]
 
-        for index, (
+        for (
             key,
+            icon,
             title,
             description,
-        ) in enumerate(
-            section_definitions
-        ):
-            row = (
-                index // 2
-            )
-            column = (
-                index % 2
-            )
-
-            sections_grid.addWidget(
+            action_key,
+        ) in section_definitions:
+            self.sections_list_layout.addWidget(
                 self.create_section_option(
                     key=key,
+                    icon=icon,
                     title=title,
                     description=description,
-                ),
-                row,
-                column,
+                    action_key=action_key,
+                )
             )
 
-        sections_grid.setColumnStretch(
-            0,
-            1,
-        )
-        sections_grid.setColumnStretch(
-            1,
-            1,
+        sections_layout.addWidget(
+            self.sections_container
         )
 
-        sections_layout.addLayout(
-            sections_grid
+        info_bar = QFrame()
+        info_bar.setObjectName(
+            "finalReportInfoBar"
         )
 
-        content_layout.addWidget(
-            sections_card
+        info_layout = QHBoxLayout(
+            info_bar
         )
+        info_layout.setContentsMargins(
+            12,
+            8,
+            12,
+            8,
+        )
+        info_layout.setSpacing(8)
+
+        info_icon = QLabel("i")
+        info_icon.setObjectName(
+            "finalReportInfoIcon"
+        )
+        info_icon.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+        info_icon.setFixedSize(22, 22)
+
+        info_text = QLabel(
+            "Seções marcadas serão incluídas na pré-visualização. "
+            "Itens indisponíveis permanecem desabilitados até que "
+            "existam informações."
+        )
+        info_text.setObjectName(
+            "finalReportInfoText"
+        )
+        info_text.setWordWrap(True)
+
+        info_layout.addWidget(info_icon)
+        info_layout.addWidget(info_text, 1)
+
+        sections_layout.addWidget(info_bar)
+
+        content_layout.addWidget(sections_card)
 
         # ---------------------------------------------------------
-        # RESUMO
+        # RESUMO DA PRÉ-VISUALIZAÇÃO
         # ---------------------------------------------------------
 
         preview_card = QFrame()
-        preview_card.setObjectName(
-            "formCard"
-        )
+        preview_card.setObjectName("formCard")
 
-        preview_layout = QVBoxLayout(
-            preview_card
-        )
+        preview_layout = QVBoxLayout(preview_card)
         preview_layout.setContentsMargins(
             20,
             17,
@@ -617,7 +573,7 @@ class FinalReportPage(QWidget):
         preview_layout.setSpacing(10)
 
         preview_title = QLabel(
-            "Resumo do relatório"
+            "Resumo da pré-visualização"
         )
         preview_title.setObjectName(
             "formSectionTitle"
@@ -629,13 +585,9 @@ class FinalReportPage(QWidget):
         self.preview_description.setObjectName(
             "cardDescription"
         )
-        self.preview_description.setWordWrap(
-            True
-        )
+        self.preview_description.setWordWrap(True)
 
-        preview_layout.addWidget(
-            preview_title
-        )
+        preview_layout.addWidget(preview_title)
         preview_layout.addWidget(
             self.preview_description
         )
@@ -657,9 +609,7 @@ class FinalReportPage(QWidget):
         self.back_action_button.setObjectName(
             "secondaryButton"
         )
-        self.back_action_button.setMinimumHeight(
-            44
-        )
+        self.back_action_button.setMinimumHeight(44)
         self.back_action_button.setCursor(
             Qt.CursorShape.PointingHandCursor
         )
@@ -673,9 +623,7 @@ class FinalReportPage(QWidget):
         self.generate_button.setObjectName(
             "primaryButton"
         )
-        self.generate_button.setMinimumHeight(
-            44
-        )
+        self.generate_button.setMinimumHeight(44)
         self.generate_button.setCursor(
             Qt.CursorShape.PointingHandCursor
         )
@@ -691,9 +639,7 @@ class FinalReportPage(QWidget):
             self.generate_button
         )
 
-        content_layout.addLayout(
-            actions
-        )
+        content_layout.addLayout(actions)
 
         # ---------------------------------------------------------
         # CENTRALIZAÇÃO
@@ -701,25 +647,14 @@ class FinalReportPage(QWidget):
 
         row = QHBoxLayout()
         row.addStretch(1)
-        row.addWidget(
-            content,
-            10,
-        )
+        row.addWidget(content, 10)
         row.addStretch(1)
 
-        scroll_layout.addLayout(
-            row
-        )
-        scroll_layout.addSpacing(
-            20
-        )
+        scroll_layout.addLayout(row)
+        scroll_layout.addSpacing(20)
 
-        self.scroll_area.setWidget(
-            scroll_content
-        )
-        root_layout.addWidget(
-            self.scroll_area
-        )
+        self.scroll_area.setWidget(scroll_content)
+        root_layout.addWidget(self.scroll_area)
 
     # =============================================================
     # COMPONENTES
@@ -732,22 +667,12 @@ class FinalReportPage(QWidget):
         row: int,
         column: int,
     ) -> QLabel:
-        title_label = QLabel(
-            title
-        )
-        title_label.setObjectName(
-            "dataLabel"
-        )
+        title_label = QLabel(title)
+        title_label.setObjectName("dataLabel")
 
-        value_label = QLabel(
-            "-"
-        )
-        value_label.setObjectName(
-            "dataValue"
-        )
-        value_label.setWordWrap(
-            True
-        )
+        value_label = QLabel("-")
+        value_label.setObjectName("dataValue")
+        value_label.setWordWrap(True)
 
         layout.addWidget(
             title_label,
@@ -765,18 +690,11 @@ class FinalReportPage(QWidget):
     def create_summary_card(
         self,
         title: str,
-    ) -> tuple[
-        QFrame,
-        QLabel,
-    ]:
+    ) -> tuple[QFrame, QLabel]:
         card = QFrame()
-        card.setObjectName(
-            "dashboardCard"
-        )
+        card.setObjectName("dashboardCard")
 
-        layout = QVBoxLayout(
-            card
-        )
+        layout = QVBoxLayout(card)
         layout.setContentsMargins(
             18,
             15,
@@ -785,58 +703,50 @@ class FinalReportPage(QWidget):
         )
         layout.setSpacing(4)
 
-        label = QLabel(
-            title
-        )
-        label.setObjectName(
-            "dataLabel"
-        )
-        label.setWordWrap(
-            True
-        )
+        label = QLabel(title)
+        label.setObjectName("dataLabel")
+        label.setWordWrap(True)
 
-        value = QLabel(
-            "0"
-        )
-        value.setObjectName(
-            "summaryValue"
-        )
+        value = QLabel("0")
+        value.setObjectName("summaryValue")
 
-        layout.addWidget(
-            label
-        )
-        layout.addWidget(
-            value
-        )
+        layout.addWidget(label)
+        layout.addWidget(value)
 
-        return (
-            card,
-            value,
-        )
+        return card, value
 
     def create_section_option(
         self,
+        *,
         key: str,
+        icon: str,
         title: str,
         description: str,
+        action_key: str | None,
     ) -> QFrame:
         frame = QFrame()
         frame.setObjectName(
-            "documentListItem"
+            "finalReportSectionRow"
+        )
+        frame.setProperty(
+            "available",
+            False,
         )
 
-        layout = QHBoxLayout(
-            frame
-        )
+        layout = QHBoxLayout(frame)
         layout.setContentsMargins(
-            16,
             14,
-            16,
+            10,
             14,
+            10,
         )
         layout.setSpacing(12)
 
         checkbox = QCheckBox()
+        checkbox.setObjectName(
+            "finalReportSectionCheck"
+        )
+        checkbox.setFixedSize(22, 22)
         checkbox.setCursor(
             Qt.CursorShape.PointingHandCursor
         )
@@ -844,60 +754,139 @@ class FinalReportPage(QWidget):
             self.update_preview_from_selection
         )
 
-        self.section_inputs[
-            key
-        ] = checkbox
+        icon_label = QLabel(icon)
+        icon_label.setObjectName(
+            "finalReportSectionIcon"
+        )
+        icon_label.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+        icon_label.setFixedSize(38, 38)
 
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(3)
+        text_layout.setSpacing(2)
 
-        title_label = QLabel(
-            title
-        )
+        title_label = QLabel(title)
         title_label.setObjectName(
-            "cardTitle"
+            "finalReportSectionTitle"
         )
 
         description_label = QLabel(
             description
         )
         description_label.setObjectName(
-            "cardDescription"
+            "finalReportSectionDescription"
         )
-        description_label.setWordWrap(
-            True
+        description_label.setWordWrap(True)
+
+        text_layout.addWidget(title_label)
+        text_layout.addWidget(description_label)
+
+        badge = QLabel(
+            "Não disponível"
+        )
+        badge.setObjectName(
+            "finalReportUnavailableBadge"
         )
 
-        text_layout.addWidget(
-            title_label
+        meta_label = QLabel("-")
+        meta_label.setObjectName(
+            "finalReportSectionMeta"
         )
-        text_layout.addWidget(
-            description_label
-        )
+        meta_label.setMinimumWidth(125)
+
+        action_button = None
+        if action_key:
+            action_button = (
+                self.create_section_action(
+                    action_key
+                )
+            )
 
         layout.addWidget(
             checkbox,
-            alignment=Qt.AlignmentFlag.AlignTop,
+            alignment=Qt.AlignmentFlag.AlignVCenter,
         )
-        layout.addLayout(
-            text_layout,
-            1,
+        layout.addWidget(
+            icon_label,
+            alignment=Qt.AlignmentFlag.AlignVCenter,
+        )
+        layout.addLayout(text_layout, 1)
+        layout.addWidget(
+            badge,
+            alignment=Qt.AlignmentFlag.AlignVCenter,
+        )
+        layout.addWidget(
+            meta_label,
+            alignment=Qt.AlignmentFlag.AlignVCenter,
         )
 
+        if action_button is not None:
+            layout.addWidget(
+                action_button,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
+            )
+
+        self.section_inputs[key] = checkbox
+        self.section_frames[key] = frame
+        self.section_badges[key] = badge
+        self.section_meta_labels[key] = meta_label
+
         return frame
+
+    def create_section_action(
+        self,
+        key: str,
+    ) -> QPushButton | None:
+        actions = {
+            "documents": (
+                "Abrir documentos",
+                self.documents_requested.emit,
+            ),
+            "characteristics": (
+                "Ver características",
+                self.characteristics_requested.emit,
+            ),
+            "measurement": (
+                "Completar medição",
+                self.measurement_requested.emit,
+            ),
+            "images": (
+                "Abrir imagens",
+                self.images_requested.emit,
+            ),
+            "technical_control": (
+                "Abrir controle",
+                self.technical_control_requested.emit,
+            ),
+        }
+
+        action = actions.get(key)
+
+        if action is None:
+            return None
+
+        text, callback = action
+
+        button = QPushButton(text)
+        button.setObjectName(
+            "finalReportSectionAction"
+        )
+        button.setCursor(
+            Qt.CursorShape.PointingHandCursor
+        )
+        button.clicked.connect(callback)
+
+        return button
 
     def create_validation_row(
         self,
         item: dict[str, Any],
     ) -> QFrame:
         row = QFrame()
-        row.setObjectName(
-            "documentListItem"
-        )
+        row.setObjectName("documentListItem")
 
-        layout = QHBoxLayout(
-            row
-        )
+        layout = QHBoxLayout(row)
         layout.setContentsMargins(
             16,
             13,
@@ -906,22 +895,15 @@ class FinalReportPage(QWidget):
         )
         layout.setSpacing(14)
 
-        status = item[
-            "status"
-        ]
+        status = item["status"]
         required = bool(
-            item.get(
-                "required",
-                False,
-            )
+            item.get("required", False)
         )
 
         if status == "complete":
             symbol = "✓"
             status_text = "Concluído"
-            badge_name = (
-                "statusBadgeSuccess"
-            )
+            badge_name = "statusBadgeSuccess"
         else:
             symbol = "!"
             status_text = (
@@ -929,77 +911,39 @@ class FinalReportPage(QWidget):
                 if required
                 else "Opcional"
             )
-            badge_name = (
-                "statusBadgeWarning"
-            )
+            badge_name = "statusBadgeWarning"
 
-        symbol_label = QLabel(
-            symbol
-        )
-        symbol_label.setObjectName(
-            "documentOrder"
-        )
+        symbol_label = QLabel(symbol)
+        symbol_label.setObjectName("documentOrder")
         symbol_label.setAlignment(
             Qt.AlignmentFlag.AlignCenter
         )
-        symbol_label.setFixedSize(
-            40,
-            40,
-        )
+        symbol_label.setFixedSize(40, 40)
 
         text_layout = QVBoxLayout()
         text_layout.setSpacing(3)
 
-        title = QLabel(
-            item[
-                "title"
-            ]
-        )
-        title.setObjectName(
-            "cardTitle"
-        )
+        title = QLabel(item["title"])
+        title.setObjectName("cardTitle")
 
-        description = QLabel(
-            item[
-                "message"
-            ]
-        )
+        description = QLabel(item["message"])
         description.setObjectName(
             "cardDescription"
         )
-        description.setWordWrap(
-            True
+        description.setWordWrap(True)
+
+        text_layout.addWidget(title)
+        text_layout.addWidget(description)
+
+        status_label = QLabel(status_text)
+        status_label.setObjectName(badge_name)
+
+        action_button = self.create_validation_action(
+            item["key"]
         )
 
-        text_layout.addWidget(
-            title
-        )
-        text_layout.addWidget(
-            description
-        )
-
-        status_label = QLabel(
-            status_text
-        )
-        status_label.setObjectName(
-            badge_name
-        )
-
-        action_button = (
-            self.create_validation_action(
-                item[
-                    "key"
-                ]
-            )
-        )
-
-        layout.addWidget(
-            symbol_label
-        )
-        layout.addLayout(
-            text_layout,
-            1,
-        )
+        layout.addWidget(symbol_label)
+        layout.addLayout(text_layout, 1)
         layout.addWidget(
             status_label,
             alignment=Qt.AlignmentFlag.AlignTop,
@@ -1044,29 +988,19 @@ class FinalReportPage(QWidget):
             ),
         }
 
-        action = actions.get(
-            key
-        )
+        action = actions.get(key)
 
         if action is None:
             return None
 
-        text, callback = (
-            action
-        )
+        text, callback = action
 
-        button = QPushButton(
-            text
-        )
-        button.setObjectName(
-            "cardButton"
-        )
+        button = QPushButton(text)
+        button.setObjectName("cardButton")
         button.setCursor(
             Qt.CursorShape.PointingHandCursor
         )
-        button.clicked.connect(
-            callback
-        )
+        button.clicked.connect(callback)
 
         return button
 
@@ -1078,15 +1012,10 @@ class FinalReportPage(QWidget):
         self,
         project: Project,
     ) -> None:
-        self.current_project = (
-            project
-        )
+        self.current_project = project
 
         self.page_header.set_metadata(
-            (
-                f"{project.report_id} "
-                f"· {project.name}"
-            )
+            f"{project.report_id} · {project.name}"
         )
 
         self.template_value.setText(
@@ -1094,14 +1023,12 @@ class FinalReportPage(QWidget):
                 project.template
             )
         )
-
         self.template_version_value.setText(
             project.template_version
             or "1.0"
         )
-
         self.output_value.setText(
-            "Pré-visualização → aprovação → exportação"
+            "PDF temporário para conferência"
         )
 
         self.load_context()
@@ -1110,9 +1037,7 @@ class FinalReportPage(QWidget):
             0
         )
 
-    def load_context(
-        self,
-    ) -> None:
+    def load_context(self) -> None:
         if (
             self.current_project is None
             or self.current_project.id is None
@@ -1125,7 +1050,6 @@ class FinalReportPage(QWidget):
                     self.current_project
                 )
             )
-
         except Exception as error:
             QMessageBox.critical(
                 self,
@@ -1137,28 +1061,14 @@ class FinalReportPage(QWidget):
             )
             return
 
-        self.current_context = (
-            context
-        )
+        self.current_context = context
 
-        self.populate_scope(
-            context
-        )
-        self.populate_summary(
-            context
-        )
-        self.populate_validation(
-            context
-        )
-        self.populate_sections(
-            context
-        )
-        self.populate_general_status(
-            context
-        )
-        self.populate_preview_summary(
-            context
-        )
+        self.populate_scope(context)
+        self.populate_summary(context)
+        self.populate_validation(context)
+        self.populate_sections(context)
+        self.populate_general_status(context)
+        self.populate_preview_summary(context)
 
     # =============================================================
     # PREENCHIMENTO
@@ -1169,10 +1079,7 @@ class FinalReportPage(QWidget):
         context: dict[str, Any],
     ) -> None:
         is_batch = bool(
-            context.get(
-                "is_batch",
-                False,
-            )
+            context.get("is_batch", False)
         )
 
         document_summary = context.get(
@@ -1190,81 +1097,46 @@ class FinalReportPage(QWidget):
 
         if is_batch:
             scope = (
-                "Relatório consolidado de lote "
-                f"· {unit_count} unidade(s)"
+                "Relatório consolidado de lote"
+                f" · {unit_count} unidade(s)"
             )
         else:
-            scope = (
-                "Relatório de peça única"
-            )
+            scope = "Relatório de peça única"
 
-        self.scope_value.setText(
-            scope
-        )
+        self.scope_value.setText(scope)
 
     def populate_summary(
         self,
         context: dict[str, Any],
     ) -> None:
-        documents = context[
-            "document_summary"
-        ]
+        documents = context["document_summary"]
         characteristics = context[
             "characteristic_summary"
         ]
-        images = context[
-            "image_summary"
-        ]
+        images = context["image_summary"]
 
         self.documents_value.setText(
-            str(
-                documents[
-                    "total"
-                ]
-            )
+            str(documents["total"])
         )
-
         self.units_value.setText(
             str(
                 documents.get(
                     "unit_count",
-                    documents[
-                        "total"
-                    ],
+                    documents["total"],
                 )
             )
         )
-
         self.characteristics_value.setText(
-            str(
-                characteristics[
-                    "total"
-                ]
-            )
+            str(characteristics["total"])
         )
-
         self.approved_value.setText(
-            str(
-                characteristics[
-                    "ok"
-                ]
-            )
+            str(characteristics["ok"])
         )
-
         self.rejected_value.setText(
-            str(
-                characteristics[
-                    "nok"
-                ]
-            )
+            str(characteristics["nok"])
         )
-
         self.images_value.setText(
-            str(
-                images[
-                    "total"
-                ]
-            )
+            str(images["total"])
         )
 
     def populate_validation(
@@ -1275,13 +1147,9 @@ class FinalReportPage(QWidget):
             self.validation_items_layout
         )
 
-        for item in context[
-            "validation_items"
-        ]:
+        for item in context["validation_items"]:
             self.validation_items_layout.addWidget(
-                self.create_validation_row(
-                    item
-                )
+                self.create_validation_row(item)
             )
 
     def populate_sections(
@@ -1295,28 +1163,8 @@ class FinalReportPage(QWidget):
             "default_sections"
         ]
 
-        for (
-            key,
-            checkbox,
-        ) in self.section_inputs.items():
-            checkbox.blockSignals(
-                True
-            )
-
-            if (
-                key
-                == self.VERSION_SECTION_KEY
-            ):
-                checkbox.setEnabled(
-                    True
-                )
-                checkbox.setChecked(
-                    False
-                )
-                checkbox.blockSignals(
-                    False
-                )
-                continue
+        for key, checkbox in self.section_inputs.items():
+            checkbox.blockSignals(True)
 
             available = bool(
                 available_sections.get(
@@ -1324,7 +1172,6 @@ class FinalReportPage(QWidget):
                     False,
                 )
             )
-
             checked = bool(
                 default_sections.get(
                     key,
@@ -1335,78 +1182,115 @@ class FinalReportPage(QWidget):
             checkbox.setEnabled(
                 available
             )
-
             checkbox.setChecked(
-                available
-                and checked
+                available and checked
             )
 
-            checkbox.blockSignals(
-                False
+            frame = self.section_frames[key]
+            frame.setProperty(
+                "available",
+                available,
             )
+            frame.style().unpolish(frame)
+            frame.style().polish(frame)
+
+            badge = self.section_badges[key]
+
+            if available:
+                badge.setText(
+                    self._get_available_badge_text(
+                        key,
+                        context,
+                    )
+                )
+                badge.setObjectName(
+                    "finalReportAvailableBadge"
+                )
+            else:
+                badge.setText(
+                    "Não disponível"
+                )
+                badge.setObjectName(
+                    "finalReportUnavailableBadge"
+                )
+
+            badge.style().unpolish(badge)
+            badge.style().polish(badge)
+
+            self.section_meta_labels[
+                key
+            ].setText(
+                self._get_section_meta(
+                    key,
+                    context,
+                )
+            )
+
+            checkbox.setToolTip(
+                (
+                    "Seção disponível para inclusão no relatório."
+                    if available
+                    else (
+                        "Seção indisponível porque não há "
+                        "informações preenchidas."
+                    )
+                )
+            )
+
+            checkbox.blockSignals(False)
 
     def populate_general_status(
         self,
         context: dict[str, Any],
     ) -> None:
-        blocking_count = len(
-            context[
-                "blocking_items"
-            ]
+        can_export = bool(
+            context.get(
+                "can_export",
+                False,
+            )
         )
 
-        warning_count = len(
-            context[
-                "warning_items"
-            ]
+        available_count = sum(
+            1
+            for item in context.get(
+                "validation_items",
+                [],
+            )
+            if item.get("available")
         )
 
-        if blocking_count == 0:
+        if can_export:
             self.general_status_title.setText(
-                "Processo pronto para pré-visualização"
+                "Pré-visualização e emissão disponíveis"
             )
-
-            if warning_count == 0:
-                description = (
-                    "Todos os itens obrigatórios e opcionais "
-                    "foram preenchidos."
-                )
-            else:
-                description = (
-                    "Os itens obrigatórios estão concluídos. "
-                    f"Há {warning_count} item(ns) opcional(is) "
-                    "pendente(s)."
-                )
-
             self.general_status_description.setText(
-                description
+                (
+                    f"{available_count} módulo(s) possuem conteúdo disponível. "
+                    "O Controle Técnico está aprovado e o relatório poderá "
+                    "ser exportado oficialmente após a conferência."
+                )
             )
-
             self.general_status_badge.setText(
-                "Pronto"
+                "Aprovado"
             )
-
             self.general_status_badge.setObjectName(
                 "statusBadgeSuccess"
             )
-
         else:
             self.general_status_title.setText(
-                "O processo ainda possui pendências"
+                "Pré-visualização disponível"
             )
-
             self.general_status_description.setText(
                 (
-                    f"{blocking_count} item(ns) obrigatório(s) "
-                    "precisa(m) ser concluído(s) antes da "
-                    "pré-visualização."
+                    f"{available_count} módulo(s) possuem conteúdo disponível. "
+                    "A pré-visualização pode ser gerada normalmente. "
+                    "A exportação oficial permanecerá bloqueada até a "
+                    "aprovação do Controle Técnico."
                 )
             )
-
             self.general_status_badge.setText(
-                "Pendente"
+                "Em elaboração"
             )
-
             self.general_status_badge.setObjectName(
                 "statusBadgeWarning"
             )
@@ -1414,16 +1298,16 @@ class FinalReportPage(QWidget):
         self.general_status_badge.style().unpolish(
             self.general_status_badge
         )
-
         self.general_status_badge.style().polish(
             self.general_status_badge
         )
 
         self.generate_button.setEnabled(
             bool(
-                context[
-                    "can_generate"
-                ]
+                context.get(
+                    "can_preview",
+                    True,
+                )
             )
         )
 
@@ -1431,76 +1315,34 @@ class FinalReportPage(QWidget):
         self,
         context: dict[str, Any],
     ) -> None:
-        project = context[
-            "project"
-        ]
-        documents = context[
-            "document_summary"
-        ]
+        project = context["project"]
+        documents = context["document_summary"]
         characteristics = context[
             "characteristic_summary"
         ]
-        images = context[
-            "image_summary"
-        ]
-        control = context[
-            "control_summary"
-        ]
+        images = context["image_summary"]
+        control = context["control_summary"]
 
-        selected_content_count = sum(
+        selected_count = sum(
             1
-            for (
-                key,
-                checkbox,
-            ) in self.section_inputs.items()
-            if (
-                key
-                != self.VERSION_SECTION_KEY
-                and checkbox.isEnabled()
-                and checkbox.isChecked()
-            )
-        )
-
-        show_version = (
-            self.section_inputs[
-                self.VERSION_SECTION_KEY
-            ].isChecked()
+            for checkbox in self.section_inputs.values()
+            if checkbox.isEnabled()
+            and checkbox.isChecked()
         )
 
         scope_text = (
             (
                 "Um PDF consolidado será montado "
-                f"para {documents.get('unit_count', 0)} "
-                "unidade(s)."
+                f"para {documents.get('unit_count', 0)} unidade(s)."
             )
-            if context.get(
-                "is_batch",
-                False,
-            )
-            else (
-                "Um PDF técnico será montado "
-                "para a peça única."
-            )
+            if context.get("is_batch", False)
+            else "Um PDF técnico será montado para a peça única."
         )
 
         primary_text = (
             "Imagem principal definida."
-            if images.get(
-                "has_primary",
-                False,
-            )
-            else (
-                "Imagem principal não definida."
-            )
-        )
-
-        version_text = (
-            "A identificação da versão será exibida no PDF."
-            if show_version
-            else (
-                "A versão será mantida apenas para "
-                "rastreabilidade interna."
-            )
+            if images.get("has_primary", False)
+            else "Imagem principal não definida."
         )
 
         parts = [
@@ -1526,20 +1368,15 @@ class FinalReportPage(QWidget):
                 f"Controle técnico: {control['status']}."
             ),
             (
-                f"{selected_content_count} módulo(s) de conteúdo "
-                "será(ão) incluído(s)."
+                f"{selected_count} seção(ões) será(ão) incluída(s)."
             ),
-            version_text,
             (
-                "A pré-visualização será gerada antes da "
-                "aprovação e exportação."
+                "Nenhum local de salvamento será solicitado nesta etapa."
             ),
         ]
 
         self.preview_description.setText(
-            "\n".join(
-                parts
-            )
+            "\n".join(parts)
         )
 
     def update_preview_from_selection(
@@ -1551,55 +1388,134 @@ class FinalReportPage(QWidget):
             )
 
     # =============================================================
+    # METADADOS DAS SEÇÕES
+    # =============================================================
+
+    def _get_available_badge_text(
+        self,
+        key: str,
+        context: dict[str, Any],
+    ) -> str:
+        if (
+            key == "technical_control"
+            and context.get(
+                "can_export",
+                False,
+            )
+        ):
+            return "Aprovado"
+
+        return "Disponível"
+
+    def _get_section_meta(
+        self,
+        key: str,
+        context: dict[str, Any],
+    ) -> str:
+        documents = context.get(
+            "document_summary",
+            {},
+        )
+        characteristics = context.get(
+            "characteristic_summary",
+            {},
+        )
+        images = context.get(
+            "image_summary",
+            {},
+        )
+        measurement = context.get(
+            "measurement_summary",
+            {},
+        )
+        control = context.get(
+            "control_summary",
+            {},
+        )
+
+        if key == "process_summary":
+            return "Dados gerais"
+
+        if key == "documents":
+            total = int(
+                documents.get(
+                    "total",
+                    0,
+                )
+                or 0
+            )
+            return f"{total} documento(s)"
+
+        if key == "measurement":
+            return (
+                "Informações preenchidas"
+                if measurement.get(
+                    "complete",
+                    False,
+                )
+                else "Sem informações"
+            )
+
+        if key == "characteristics":
+            total = int(
+                characteristics.get(
+                    "total",
+                    0,
+                )
+                or 0
+            )
+            return (
+                f"{total} característica(s)"
+            )
+
+        if key == "images":
+            total = int(
+                images.get(
+                    "total",
+                    0,
+                )
+                or 0
+            )
+            return f"{total} imagem(ns)"
+
+        if key == "observations":
+            return (
+                "Conteúdo preenchido"
+                if context.get(
+                    "available_sections",
+                    {},
+                ).get(
+                    "observations",
+                    False,
+                )
+                else "Sem observações"
+            )
+
+        if key == "technical_control":
+            return str(
+                control.get(
+                    "status",
+                    "Não iniciado",
+                )
+            )
+
+        return "-"
+
+    # =============================================================
     # SOLICITAÇÃO
     # =============================================================
 
-    def request_generation(
-        self,
-    ) -> None:
+    def request_generation(self) -> None:
         if not self.current_context:
             return
 
-        if not self.current_context.get(
-            "can_generate",
-            False,
-        ):
-            QMessageBox.warning(
-                self,
-                "Processo incompleto",
-                (
-                    "Conclua os itens obrigatórios antes "
-                    "de gerar a pré-visualização."
-                ),
-            )
-            return
-
         selected_sections = {
-            key:
-                checkbox.isChecked()
-            for (
-                key,
-                checkbox,
-            ) in self.section_inputs.items()
+            key: checkbox.isChecked()
+            for key, checkbox in self.section_inputs.items()
             if checkbox.isEnabled()
         }
 
-        content_sections = {
-            key:
-                selected
-            for (
-                key,
-                selected,
-            ) in selected_sections.items()
-            if (
-                key
-                != self.VERSION_SECTION_KEY
-            )
-        }
-
-        if not any(
-            content_sections.values()
-        ):
+        if not any(selected_sections.values()):
             QMessageBox.warning(
                 self,
                 "Nenhuma seção selecionada",
@@ -1611,44 +1527,32 @@ class FinalReportPage(QWidget):
             return
 
         payload = {
-            "project":
-                self.current_project,
-
-            "context":
-                self.current_context,
-
-            "sections":
-                selected_sections,
+            "project": self.current_project,
+            "context": self.current_context,
+            "sections": selected_sections,
         }
 
-        self.generate_requested.emit(
-            payload
-        )
+        self.generate_requested.emit(payload)
 
     def set_generating(
         self,
         generating: bool,
     ) -> None:
         self.generate_button.setEnabled(
-            (
-                not generating
-                and bool(
-                    self.current_context.get(
-                        "can_generate",
-                        False,
-                    )
+            not generating
+            and bool(
+                self.current_context.get(
+                    "can_preview",
+                    True,
                 )
             )
         )
-
         self.refresh_button.setEnabled(
             not generating
         )
-
         self.back_action_button.setEnabled(
             not generating
         )
-
         self.generate_button.setText(
             (
                 "Gerando pré-visualização..."
@@ -1669,7 +1573,6 @@ class FinalReportPage(QWidget):
             return get_template_definition(
                 template_code
             ).name
-
         except ValueError:
             return (
                 template_code
@@ -1681,17 +1584,12 @@ class FinalReportPage(QWidget):
         layout,
     ) -> None:
         while layout.count():
-            item = layout.takeAt(
-                0
-            )
+            item = layout.takeAt(0)
 
             widget = item.widget()
             child_layout = item.layout()
 
             if widget is not None:
                 widget.deleteLater()
-
             elif child_layout is not None:
-                self.clear_layout(
-                    child_layout
-                )
+                self.clear_layout(child_layout)

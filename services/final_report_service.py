@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from models.project import Project
+from repositories.characteristic_repository import (
+    CharacteristicRepository,
+)
 
 from services.image_service import (
     ImageService,
@@ -53,6 +56,10 @@ class FinalReportService:
 
         self.technical_control_service = (
             TechnicalControlService()
+        )
+
+        self.characteristic_repository = (
+            CharacteristicRepository()
         )
 
     # =============================================================
@@ -113,13 +120,12 @@ class FinalReportService:
             )
         )
 
-        characteristics = [
-            characteristic
-            for _, extraction_characteristics
-            in extraction_pairs
-            for characteristic
-            in extraction_characteristics
-        ]
+        characteristics = (
+            self.characteristic_repository
+            .find_by_project_id(
+                project.id
+            )
+        )
 
         document_summary = (
             self._build_document_summary(
@@ -194,7 +200,7 @@ class FinalReportService:
                     )
                 ),
 
-                required=True,
+                required=False,
             ),
 
             self._build_validation_item(
@@ -222,11 +228,11 @@ class FinalReportService:
                 ),
 
                 pending_message=(
-                    "Nenhuma característica foi "
-                    "identificada nos documentos."
+                    "Nenhuma característica foi cadastrada "
+                    "ou identificada no processo."
                 ),
 
-                required=True,
+                required=False,
             ),
 
             self._build_validation_item(
@@ -255,7 +261,7 @@ class FinalReportService:
                     ]
                 ),
 
-                required=True,
+                required=False,
             ),
 
             self._build_validation_item(
@@ -511,10 +517,25 @@ class FinalReportService:
             "default_sections":
                 default_sections,
 
+            # A pré-visualização nunca é bloqueada pela ausência
+            # de módulos opcionais. O relatório usa apenas o conteúdo
+            # que estiver disponível no processo.
+            "can_preview":
+                True,
+
+            # A emissão/exportação oficial exige exclusivamente
+            # a aprovação válida do Controle Técnico.
+            "can_export":
+                bool(
+                    control_summary[
+                        "complete"
+                    ]
+                ),
+
+            # Compatibilidade temporária com pontos antigos do sistema.
+            # Representa capacidade de gerar a prévia, não de exportar.
             "can_generate":
-                len(
-                    blocking_items
-                ) == 0,
+                True,
         }
 
     # =============================================================
@@ -824,38 +845,17 @@ class FinalReportService:
             ).strip()
         )
 
-        required_values = [
-            measurement.responsible,
-            measurement.machine_details,
-        ]
-
-        complete = all(
-            str(
-                value
-                or ""
-            ).strip()
-            for value in required_values
-        )
+        complete = filled_fields > 0
 
         if complete:
             pending_message = (
-                "Os dados essenciais da medição "
-                "estão preenchidos."
+                f"{filled_fields} informação(ões) de medição "
+                "disponível(is) para o relatório."
             )
-
-        elif not str(
-            measurement.responsible
-            or ""
-        ).strip():
-            pending_message = (
-                "Informe o responsável geral "
-                "pela medição."
-            )
-
         else:
             pending_message = (
-                "Revise os detalhes do "
-                "equipamento utilizado."
+                "Nenhuma informação de medição foi preenchida. "
+                "Isso não impede a geração do relatório."
             )
 
         return {
@@ -1187,4 +1187,4 @@ class FinalReportService:
         }:
             return self.STATUS_NOK
 
-        return self.STATUS_UNKNOWN 
+        return self.STATUS_UNKNOWN

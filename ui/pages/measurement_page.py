@@ -85,9 +85,9 @@ class MeasurementPage(QWidget):
         self.page_header = PageHeader(
             title="Informações da medição",
             subtitle=(
-                "Revise os dados identificados nos relatórios e "
-                "complete as informações técnicas da preparação, "
-                "execução e configuração da medição."
+                "Registre as informações técnicas disponíveis sobre a medição. "
+                "Quando houver dados extraídos de documentos, o METRA poderá "
+                "sugerir valores para complementar o preenchimento."
             ),
             metadata="-",
             back_text="← Visão geral",
@@ -127,7 +127,7 @@ class MeasurementPage(QWidget):
 
         self.equipment_value = self.create_context_field(
             context_layout,
-            label="Equipamentos identificados",
+            label="Equipamento",
             row=0,
             column=2,
         )
@@ -414,7 +414,8 @@ class MeasurementPage(QWidget):
         layout.setSpacing(11)
 
         self.execution_description = QLabel(
-            "Informe o responsável e a data geral da medição."
+            "Informe o responsável e a data geral quando essas informações "
+            "forem aplicáveis ao processo."
         )
         self.execution_description.setObjectName(
             "formSectionDescription"
@@ -430,7 +431,7 @@ class MeasurementPage(QWidget):
         layout.addWidget(self.execution_description)
 
         responsible_label = QLabel(
-            "Responsável geral pela medição *"
+            "Responsável geral pela medição"
         )
         responsible_label.setObjectName("fieldLabel")
 
@@ -859,12 +860,12 @@ class MeasurementPage(QWidget):
             )
         else:
             self.execution_description.setText(
-                "Identifique a pessoa responsável e a data "
-                "em que a medição foi executada."
+                "Informe responsável e data quando essas informações "
+                "forem conhecidas ou aplicáveis ao trabalho."
             )
 
             self.datetime_help.setText(
-                "Use quando a data e a hora da medição "
+                "Opcional. Use quando a data e a hora da medição "
                 "forem conhecidas."
             )
 
@@ -1425,7 +1426,7 @@ class MeasurementPage(QWidget):
         except ValueError as error:
             QMessageBox.warning(
                 self,
-                "Dados incompletos",
+                "Dados inválidos",
                 str(error),
             )
             return
@@ -1830,7 +1831,6 @@ class MeasurementPage(QWidget):
             child_layout = item.layout()
 
             if widget is not None:
-                widget.setParent(None)
                 widget.deleteLater()
 
             elif child_layout is not None:

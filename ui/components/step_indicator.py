@@ -153,6 +153,27 @@ class StepIndicator(QWidget):
 
         self.update()
 
+    def set_steps(
+        self,
+        steps: list[str],
+        current_step: int = 0,
+    ) -> None:
+        if not steps:
+            raise ValueError(
+                "O indicador precisa de ao menos uma etapa."
+            )
+
+        self.steps = list(
+            steps
+        )
+
+        self.current_step = self._clamp_step(
+            current_step
+        )
+
+        self.updateGeometry()
+        self.update()
+
     def _clamp_step(
         self,
         step: int,

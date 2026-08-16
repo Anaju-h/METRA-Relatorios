@@ -4,15 +4,15 @@ from models.characteristic import Characteristic
 
 class CharacteristicRepository:
     """
-    Persistência das características extraídas.
+    Persistência das características do processo.
 
-    Cada característica pertence a uma extração específica.
-    Consequentemente, cada documento mantém seus próprios
-    resultados técnicos.
+    Uma característica pertence diretamente ao projeto.
+    Quando foi obtida de um documento, extraction_id mantém
+    a rastreabilidade com a extração de origem.
     """
 
     # =============================================================
-    # EXCLUIR POR EXTRAÇÃO
+    # EXCLUSÃO
     # =============================================================
 
     def delete_by_extraction_id(
@@ -37,6 +37,28 @@ class CharacteristicRepository:
         finally:
             connection.close()
 
+    def delete(
+        self,
+        characteristic_id: int,
+    ) -> None:
+        connection = get_connection()
+
+        try:
+            cursor = connection.cursor()
+
+            cursor.execute(
+                """
+                DELETE FROM characteristics
+                WHERE id = ?
+                """,
+                (characteristic_id,),
+            )
+
+            connection.commit()
+
+        finally:
+            connection.close()
+
     # =============================================================
     # CRIAR
     # =============================================================
@@ -53,7 +75,9 @@ class CharacteristicRepository:
             cursor.execute(
                 """
                 INSERT INTO characteristics (
+                    project_id,
                     extraction_id,
+                    origin,
 
                     name,
                     group_name,
@@ -87,7 +111,7 @@ class CharacteristicRepository:
                     updated_at
                 )
                 VALUES (
-                    ?,
+                    ?, ?, ?,
                     ?, ?,
                     ?, ?,
                     ?, ?,
@@ -102,7 +126,9 @@ class CharacteristicRepository:
                 )
                 """,
                 (
+                    characteristic.project_id,
                     characteristic.extraction_id,
+                    characteristic.origin,
 
                     characteristic.name,
                     characteristic.group_name,
@@ -139,9 +165,7 @@ class CharacteristicRepository:
 
             connection.commit()
 
-            characteristic.id = (
-                cursor.lastrowid
-            )
+            characteristic.id = cursor.lastrowid
 
             return characteristic
 
@@ -149,8 +173,38 @@ class CharacteristicRepository:
             connection.close()
 
     # =============================================================
-    # LISTAR POR EXTRAÇÃO
+    # BUSCAS
     # =============================================================
+
+    def find_by_id(
+        self,
+        characteristic_id: int,
+    ) -> Characteristic | None:
+        connection = get_connection()
+
+        try:
+            cursor = connection.cursor()
+
+            cursor.execute(
+                """
+                SELECT *
+                FROM characteristics
+                WHERE id = ?
+                """,
+                (characteristic_id,),
+            )
+
+            row = cursor.fetchone()
+
+            if row is None:
+                return None
+
+            return self._row_to_characteristic(
+                row
+            )
+
+        finally:
+            connection.close()
 
     def find_by_extraction_id(
         self,
@@ -189,17 +243,13 @@ class CharacteristicRepository:
         finally:
             connection.close()
 
-    # =============================================================
-    # LISTAR POR PROJETO
-    # =============================================================
-
     def find_by_project_id(
         self,
         project_id: int,
     ) -> list[Characteristic]:
         """
-        Retorna as características de todos os documentos
-        pertencentes ao projeto.
+        Retorna características manuais e extraídas pertencentes
+        diretamente ao processo.
         """
 
         connection = get_connection()
@@ -213,7 +263,7 @@ class CharacteristicRepository:
                     characteristic.*
                 FROM characteristics AS characteristic
 
-                INNER JOIN report_extractions AS extraction
+                LEFT JOIN report_extractions AS extraction
                     ON extraction.id =
                         characteristic.extraction_id
 
@@ -221,9 +271,15 @@ class CharacteristicRepository:
                     ON document.id =
                         extraction.document_id
 
-                WHERE extraction.project_id = ?
+                WHERE characteristic.project_id = ?
 
                 ORDER BY
+                    CASE
+                        WHEN characteristic.origin = 'MANUAL'
+                            THEN 1
+                        ELSE 0
+                    END ASC,
+
                     CASE
                         WHEN document.document_order IS NULL
                             THEN 999999
@@ -263,10 +319,7 @@ class CharacteristicRepository:
     ) -> None:
         if characteristic.id is None:
             raise ValueError(
-                (
-                    "A característica não possui "
-                    "um identificador válido."
-                )
+                "A característica não possui um identificador válido."
             )
 
         connection = get_connection()
@@ -278,6 +331,10 @@ class CharacteristicRepository:
                 """
                 UPDATE characteristics
                 SET
+                    project_id = ?,
+                    extraction_id = ?,
+                    origin = ?,
+
                     name = ?,
                     group_name = ?,
 
@@ -311,6 +368,10 @@ class CharacteristicRepository:
                 WHERE id = ?
                 """,
                 (
+                    characteristic.project_id,
+                    characteristic.extraction_id,
+                    characteristic.origin,
+
                     characteristic.name,
                     characteristic.group_name,
 
@@ -340,7 +401,6 @@ class CharacteristicRepository:
                     characteristic.extra_data_json,
 
                     characteristic.updated_at,
-
                     characteristic.id,
                 ),
             )
@@ -358,91 +418,62 @@ class CharacteristicRepository:
         self,
         row,
     ) -> Characteristic:
+        column_names = set(
+            row.keys()
+        )
+
         return Characteristic(
             id=row["id"],
 
-            extraction_id=row[
-                "extraction_id"
-            ],
+            project_id=row["project_id"],
 
-            name=row[
-                "name"
-            ],
+            extraction_id=(
+                row["extraction_id"]
+                if "extraction_id" in column_names
+                else None
+            ),
 
-            group_name=row[
-                "group_name"
-            ],
+            origin=(
+                row["origin"]
+                if (
+                    "origin" in column_names
+                    and row["origin"]
+                )
+                else "EXTRACTED"
+            ),
 
-            datum=row[
-                "datum"
-            ],
+            name=row["name"],
+            group_name=row["group_name"],
 
-            property_name=row[
-                "property_name"
-            ],
+            datum=row["datum"],
+            property_name=row["property_name"],
 
-            measured_value=row[
-                "measured_value"
-            ],
+            measured_value=row["measured_value"],
+            nominal_value=row["nominal_value"],
 
-            nominal_value=row[
-                "nominal_value"
-            ],
+            upper_tolerance=row["upper_tolerance"],
+            lower_tolerance=row["lower_tolerance"],
 
-            upper_tolerance=row[
-                "upper_tolerance"
-            ],
+            deviation=row["deviation"],
+            unit=row["unit"],
 
-            lower_tolerance=row[
-                "lower_tolerance"
-            ],
+            status=row["status"],
 
-            deviation=row[
-                "deviation"
-            ],
-
-            unit=row[
-                "unit"
-            ],
-
-            status=row[
-                "status"
-            ],
-
-            check_value=row[
-                "check_value"
-            ],
-
-            out_value=row[
-                "out_value"
-            ],
+            check_value=row["check_value"],
+            out_value=row["out_value"],
 
             confidence=(
                 row["confidence"]
                 or 0.0
             ),
 
-            extraction_method=row[
-                "extraction_method"
-            ],
+            extraction_method=row["extraction_method"],
 
-            source_page=row[
-                "source_page"
-            ],
+            source_page=row["source_page"],
+            raw_text=row["raw_text"],
 
-            raw_text=row[
-                "raw_text"
-            ],
+            extra_data_json=row["extra_data_json"],
 
-            extra_data_json=row[
-                "extra_data_json"
-            ],
-
-            created_at=row[
-                "created_at"
-            ],
-
-            updated_at=row[
-                "updated_at"
-            ],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )

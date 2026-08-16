@@ -1371,3 +1371,147 @@ QProgressBar::chunk {
     color: #075A97;
     font-weight: 750;
 }
+
+
+/* =========================================================
+   RELATÓRIO FINAL — SELEÇÃO DE CONTEÚDO
+   ========================================================= */
+
+#finalReportContentCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D8E1E9;
+    border-radius: 10px;
+}
+
+#finalReportSectionsContainer {
+    background-color: #FFFFFF;
+    border: 1px solid #DCE5EC;
+    border-radius: 9px;
+}
+
+#finalReportSectionRow {
+    background-color: #FFFFFF;
+    border: none;
+    border-bottom: 1px solid #E3EAF0;
+    min-height: 58px;
+}
+
+#finalReportSectionRow:hover {
+    background-color: #F8FBFD;
+}
+
+#finalReportSectionRow[available="false"] {
+    background-color: #FBFCFD;
+}
+
+#finalReportSectionIcon {
+    background-color: #EAF3FA;
+    color: #0873C5;
+    border: 1px solid #D3E4F0;
+    border-radius: 8px;
+    font-size: 17px;
+    font-weight: 750;
+}
+
+#finalReportSectionRow[available="false"] #finalReportSectionIcon {
+    background-color: #F2F5F7;
+    color: #8A9AAA;
+    border-color: #E0E6EB;
+}
+
+#finalReportSectionTitle {
+    color: #08233E;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+#finalReportSectionDescription {
+    color: #667A8E;
+    font-size: 12px;
+}
+
+#finalReportSectionMeta {
+    color: #526B82;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#finalReportSectionAction {
+    background-color: transparent;
+    color: #006CB7;
+    border: none;
+    padding: 6px 4px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+#finalReportSectionAction:hover {
+    color: #004F89;
+}
+
+#finalReportAvailableBadge {
+    background-color: #E7F5EC;
+    color: #167443;
+    border: 1px solid #BFE3CC;
+    border-radius: 9px;
+    padding: 4px 9px;
+    font-size: 10px;
+    font-weight: 750;
+}
+
+#finalReportUnavailableBadge {
+    background-color: #FFF4E6;
+    color: #B65A00;
+    border: 1px solid #F0D4AD;
+    border-radius: 9px;
+    padding: 4px 9px;
+    font-size: 10px;
+    font-weight: 750;
+}
+
+#finalReportSectionCheck {
+    spacing: 0px;
+}
+
+#finalReportSectionCheck::indicator {
+    width: 17px;
+    height: 17px;
+    border: 1px solid #9FB3C8;
+    border-radius: 4px;
+    background-color: #FFFFFF;
+}
+
+#finalReportSectionCheck::indicator:hover {
+    border-color: #0873C5;
+    background-color: #F2F8FC;
+}
+
+#finalReportSectionCheck::indicator:checked {
+    background-color: #0873C5;
+    border: 1px solid #0873C5;
+}
+
+#finalReportSectionCheck::indicator:disabled {
+    background-color: #EEF3F6;
+    border: 1px solid #CCD8E1;
+}
+
+#finalReportInfoBar {
+    background-color: #F6F9FB;
+    border: 1px solid #E0E7ED;
+    border-radius: 7px;
+}
+
+#finalReportInfoIcon {
+    background-color: #E8F2F9;
+    color: #006CB7;
+    border: 1px solid #C9DDEB;
+    border-radius: 11px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+#finalReportInfoText {
+    color: #60758A;
+    font-size: 11px;
+}

@@ -739,6 +739,8 @@ class ReportExtractionService:
 
         saved_characteristics = (
             self._replace_characteristics(
+                project_id=project_id,
+
                 extraction_id=(
                     extraction.id
                 ),
@@ -762,6 +764,7 @@ class ReportExtractionService:
 
     def _replace_characteristics(
         self,
+        project_id: int,
         extraction_id: int,
         parsed_characteristics,
         timestamp: str,
@@ -794,9 +797,13 @@ class ReportExtractionService:
                 extra_data_json = None
 
             characteristic = Characteristic(
+                project_id=project_id,
+
                 extraction_id=(
                     extraction_id
                 ),
+
+                origin="EXTRACTED",
 
                 name=(
                     parsed_characteristic.name

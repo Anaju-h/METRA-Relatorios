@@ -135,12 +135,11 @@ class ProjectDocumentsStep(QWidget):
 
         self.step_indicator = StepIndicator(
             [
-                "Início",
                 "Documentos",
                 "Revisão",
                 "Criar",
             ],
-            current_step=1,
+            current_step=0,
         )
 
         layout.addWidget(

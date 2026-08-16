@@ -29,6 +29,44 @@ class TechnicalControlService:
             project_id
         )
 
+    def is_approved(
+        self,
+        project_id: int,
+    ) -> bool:
+        """
+        Retorna True somente quando o Controle Técnico permite
+        a emissão oficial do relatório.
+        """
+        control = self.get_control(
+            project_id
+        )
+
+        if control is None:
+            return False
+
+        return bool(
+            control.status == "Aprovado"
+            and str(
+                control.prepared_by
+                or ""
+            ).strip()
+            and str(
+                control.reviewed_by
+                or ""
+            ).strip()
+        )
+
+    def can_issue_report(
+        self,
+        project_id: int,
+    ) -> bool:
+        """
+        Alias semântico usado pelo fluxo de exportação oficial.
+        """
+        return self.is_approved(
+            project_id
+        )
+
     def save_control(
         self,
         project_id: int,

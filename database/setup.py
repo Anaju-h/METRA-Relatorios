@@ -326,15 +326,21 @@ def initialize_database() -> None:
         )
 
         # =========================================================
-        # CARACTERÍSTICAS EXTRAÍDAS
+        # CARACTERÍSTICAS DO PROCESSO
         # =========================================================
 
+        # Em instalações novas, a característica pertence diretamente
+        # ao projeto. extraction_id é opcional para permitir cadastro
+        # manual sem documento de origem.
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS characteristics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-                extraction_id INTEGER NOT NULL,
+                project_id INTEGER NOT NULL,
+                extraction_id INTEGER,
+
+                origin TEXT NOT NULL DEFAULT 'EXTRACTED',
 
                 name TEXT NOT NULL,
 
@@ -371,9 +377,20 @@ def initialize_database() -> None:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
 
+                FOREIGN KEY (project_id)
+                    REFERENCES projects(id)
+                    ON DELETE CASCADE,
+
                 FOREIGN KEY (extraction_id)
                     REFERENCES report_extractions(id)
-                    ON DELETE CASCADE
+                    ON DELETE CASCADE,
+
+                CHECK (
+                    origin IN (
+                        'EXTRACTED',
+                        'MANUAL'
+                    )
+                )
             )
             """
         )
@@ -672,47 +689,330 @@ def initialize_database() -> None:
             """
         )
 
+        characteristic_info = (
+            cursor.fetchall()
+        )
+
         characteristic_columns = {
             row["name"]
-            for row in cursor.fetchall()
+            for row in characteristic_info
         }
 
-        characteristic_migrations = {
-            "datum":
-                "TEXT",
+        extraction_column_info = next(
+            (
+                row
+                for row in characteristic_info
+                if row["name"] == "extraction_id"
+            ),
+            None,
+        )
 
-            "property_name":
-                "TEXT",
+        needs_characteristics_rebuild = (
+            "project_id"
+            not in characteristic_columns
 
-            "check_value":
-                "TEXT",
+            or "origin"
+            not in characteristic_columns
 
-            "out_value":
-                "TEXT",
+            or (
+                extraction_column_info
+                is not None
+                and bool(
+                    extraction_column_info[
+                        "notnull"
+                    ]
+                )
+            )
+        )
 
-            "confidence":
-                "REAL NOT NULL DEFAULT 0.0",
+        if needs_characteristics_rebuild:
+            # SQLite não permite retirar o NOT NULL de uma coluna
+            # diretamente. Por isso a tabela antiga é reconstruída,
+            # preservando os registros existentes.
+            cursor.execute(
+                """
+                DROP TABLE IF EXISTS characteristics_new
+                """
+            )
 
-            "extraction_method":
-                "TEXT",
+            cursor.execute(
+                """
+                CREATE TABLE characteristics_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-            "extra_data_json":
-                "TEXT",
-        }
+                    project_id INTEGER NOT NULL,
+                    extraction_id INTEGER,
 
-        for (
-            column_name,
-            column_type,
-        ) in characteristic_migrations.items():
-            if column_name in characteristic_columns:
-                continue
+                    origin TEXT NOT NULL DEFAULT 'EXTRACTED',
+
+                    name TEXT NOT NULL,
+
+                    group_name TEXT,
+
+                    datum TEXT,
+                    property_name TEXT,
+
+                    measured_value REAL,
+                    nominal_value REAL,
+
+                    upper_tolerance REAL,
+                    lower_tolerance REAL,
+
+                    deviation REAL,
+
+                    unit TEXT,
+
+                    status TEXT NOT NULL DEFAULT 'UNKNOWN',
+
+                    check_value TEXT,
+                    out_value TEXT,
+
+                    confidence REAL NOT NULL DEFAULT 0.0,
+
+                    extraction_method TEXT,
+
+                    source_page INTEGER,
+
+                    raw_text TEXT,
+
+                    extra_data_json TEXT,
+
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+
+                    FOREIGN KEY (project_id)
+                        REFERENCES projects(id)
+                        ON DELETE CASCADE,
+
+                    FOREIGN KEY (extraction_id)
+                        REFERENCES report_extractions(id)
+                        ON DELETE CASCADE,
+
+                    CHECK (
+                        origin IN (
+                            'EXTRACTED',
+                            'MANUAL'
+                        )
+                    )
+                )
+                """
+            )
+
+            def characteristic_column(
+                column_name: str,
+                fallback: str = "NULL",
+            ) -> str:
+                if (
+                    column_name
+                    in characteristic_columns
+                ):
+                    return (
+                        "characteristic."
+                        f'"{column_name}"'
+                    )
+
+                return fallback
+
+            if (
+                "project_id"
+                in characteristic_columns
+            ):
+                project_id_expression = (
+                    'characteristic."project_id"'
+                )
+
+            else:
+                project_id_expression = (
+                    "extraction.project_id"
+                )
+
+            if (
+                "origin"
+                in characteristic_columns
+            ):
+                origin_expression = """
+                    CASE
+                        WHEN UPPER(
+                            COALESCE(
+                                characteristic.origin,
+                                ''
+                            )
+                        ) = 'MANUAL'
+                        THEN 'MANUAL'
+                        ELSE 'EXTRACTED'
+                    END
+                """
+
+            else:
+                origin_expression = (
+                    "'EXTRACTED'"
+                )
 
             cursor.execute(
                 f"""
-                ALTER TABLE characteristics
-                ADD COLUMN {column_name} {column_type}
+                INSERT INTO characteristics_new (
+                    id,
+                    project_id,
+                    extraction_id,
+                    origin,
+
+                    name,
+                    group_name,
+
+                    datum,
+                    property_name,
+
+                    measured_value,
+                    nominal_value,
+
+                    upper_tolerance,
+                    lower_tolerance,
+
+                    deviation,
+                    unit,
+
+                    status,
+
+                    check_value,
+                    out_value,
+
+                    confidence,
+                    extraction_method,
+
+                    source_page,
+                    raw_text,
+
+                    extra_data_json,
+
+                    created_at,
+                    updated_at
+                )
+                SELECT
+                    characteristic.id,
+                    {project_id_expression},
+                    {characteristic_column("extraction_id")},
+                    {origin_expression},
+
+                    characteristic.name,
+                    {characteristic_column("group_name")},
+
+                    {characteristic_column("datum")},
+                    {characteristic_column("property_name")},
+
+                    {characteristic_column("measured_value")},
+                    {characteristic_column("nominal_value")},
+
+                    {characteristic_column("upper_tolerance")},
+                    {characteristic_column("lower_tolerance")},
+
+                    {characteristic_column("deviation")},
+                    {characteristic_column("unit")},
+
+                    COALESCE(
+                        {characteristic_column("status", "'UNKNOWN'")},
+                        'UNKNOWN'
+                    ),
+
+                    {characteristic_column("check_value")},
+                    {characteristic_column("out_value")},
+
+                    COALESCE(
+                        {characteristic_column("confidence", "0.0")},
+                        0.0
+                    ),
+
+                    {characteristic_column("extraction_method")},
+
+                    {characteristic_column("source_page")},
+                    {characteristic_column("raw_text")},
+
+                    {characteristic_column("extra_data_json")},
+
+                    characteristic.created_at,
+                    characteristic.updated_at
+
+                FROM characteristics
+                    AS characteristic
+
+                LEFT JOIN report_extractions
+                    AS extraction
+                    ON extraction.id =
+                        characteristic.extraction_id
+
+                WHERE
+                    {project_id_expression}
+                    IS NOT NULL
                 """
             )
+
+            cursor.execute(
+                """
+                DROP TABLE characteristics
+                """
+            )
+
+            cursor.execute(
+                """
+                ALTER TABLE characteristics_new
+                RENAME TO characteristics
+                """
+            )
+
+        else:
+            characteristic_migrations = {
+                "datum":
+                    "TEXT",
+
+                "property_name":
+                    "TEXT",
+
+                "check_value":
+                    "TEXT",
+
+                "out_value":
+                    "TEXT",
+
+                "confidence":
+                    "REAL NOT NULL DEFAULT 0.0",
+
+                "extraction_method":
+                    "TEXT",
+
+                "extra_data_json":
+                    "TEXT",
+            }
+
+            for (
+                column_name,
+                column_type,
+            ) in characteristic_migrations.items():
+                if (
+                    column_name
+                    in characteristic_columns
+                ):
+                    continue
+
+                cursor.execute(
+                    f"""
+                    ALTER TABLE characteristics
+                    ADD COLUMN {column_name} {column_type}
+                    """
+                )
+
+        cursor.execute(
+            """
+            UPDATE characteristics
+            SET origin =
+                CASE
+                    WHEN extraction_id IS NULL
+                    THEN 'MANUAL'
+                    ELSE 'EXTRACTED'
+                END
+            WHERE
+                origin IS NULL
+                OR TRIM(origin) = ''
+            """
+        )
 
         # =========================================================
         # ÍNDICES
@@ -788,6 +1088,22 @@ def initialize_database() -> None:
             CREATE INDEX IF NOT EXISTS
                 idx_characteristics_extraction
             ON characteristics(extraction_id)
+            """
+        )
+
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+                idx_characteristics_project
+            ON characteristics(project_id)
+            """
+        )
+
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+                idx_characteristics_origin
+            ON characteristics(origin)
             """
         )
 
