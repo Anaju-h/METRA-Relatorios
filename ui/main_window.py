@@ -1415,6 +1415,19 @@ class MainWindow(QMainWindow):
         )
 
         report_page = self.ensure_final_report_page()
+        preview_page = self.ensure_final_report_preview_page()
+
+        # Libera qualquer PDF de pré-visualização que ainda esteja
+        # aberto no PdfViewer antes de sobrescrever o arquivo temporário.
+        # No Windows, o fitz mantém um handle aberto enquanto o documento
+        # está carregado, o que provoca WinError 32 ao tentar substituir
+        # a pré-visualização anterior.
+        preview_page.clear_preview()
+
+        # Remove referências a uma geração anterior para impedir que uma
+        # prévia antiga continue disponível caso a nova geração falhe.
+        self.last_final_report_payload = None
+        self.last_generated_report_path = None
 
         report_page.set_generating(
             True
@@ -1446,10 +1459,6 @@ class MainWindow(QMainWindow):
 
             self.last_generated_report_path = (
                 generated_path
-            )
-
-            preview_page = (
-                self.ensure_final_report_preview_page()
             )
 
             preview_page.set_export_allowed(

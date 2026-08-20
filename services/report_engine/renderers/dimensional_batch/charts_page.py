@@ -5,20 +5,18 @@ from typing import Any
 
 import fitz
 
-from services.report_engine.layout_engine import (
-    ReportLayoutEngine,
-)
-from services.report_engine.report_context import (
-    ReportRenderContext,
-)
+from services.report_engine.layout_engine import ReportLayoutEngine
+from services.report_engine.report_context import ReportRenderContext
 
 
 class DimensionalBatchChartsPage:
     """
-    Análise gráfica do relatório dimensional em lote.
+    Análise gráfica do lote.
 
-    O módulo apenas apresenta gráficos já gerados pelo serviço.
-    Mensagens internas de ausência/erro não são impressas no PDF do cliente.
+    A seção combina gráficos consolidados com uma seleção limitada de
+    gráficos de tendência por característica.
+
+    A seleção é feita no ReportChartService e evita duplicidade.
     """
 
     COLOR_NAVY = (0.025, 0.110, 0.215)
@@ -27,9 +25,12 @@ class DimensionalBatchChartsPage:
     COLOR_LIGHT_BLUE = (0.925, 0.960, 0.987)
 
     SECTION_TITLE_HEIGHT = 28.0
-    CHART_TITLE_HEIGHT = 31.0
-    CHART_HEIGHT_MEDIUM = 198.0
-    CHART_HEIGHT_SMALL = 170.0
+    CHART_TITLE_HEIGHT = 38.0
+
+    CHART_HEIGHT_LARGE = 220.0
+    CHART_HEIGHT_MEDIUM = 195.0
+    CHART_HEIGHT_TREND = 205.0
+
     GAP = 10.0
 
     def render(
@@ -46,7 +47,7 @@ class DimensionalBatchChartsPage:
             return
 
         self._draw_page_title(
-            layout=layout,
+            layout=layout
         )
 
         for block in blocks:
@@ -63,142 +64,171 @@ class DimensionalBatchChartsPage:
         self,
         render_context: ReportRenderContext,
     ) -> list[dict[str, Any]]:
-        blocks: list[dict[str, Any]] = []
-
         charts = (
             render_context.charts
             or {}
         )
 
-        groups = (
-            render_context.statistical_groups
-        )
+        blocks: list[
+            dict[str, Any]
+        ] = []
 
-        overall = (
-            render_context.overall_statistics
-        )
+        seen_paths: set[str] = set()
 
-        evaluated_count = int(
-            overall.get(
-                "evaluated_count",
-                0,
-            )
-            or 0
-        )
+        consolidated_candidates = [
+            {
+                "title":
+                    "Conformidade geral do lote",
 
-        groups_with_results = [
-            group
-            for group in groups
-            if int(
-                getattr(
-                    group,
-                    "valid_numeric_count",
-                    0,
-                )
-                or 0
-            ) > 0
+                "description":
+                    (
+                        "Distribuição consolidada entre resultados "
+                        "conformes, não conformes e não avaliados."
+                    ),
+
+                "path":
+                    charts.get(
+                        "overall_conformity"
+                    ),
+
+                "height":
+                    self.CHART_HEIGHT_MEDIUM,
+            },
+            {
+                "title":
+                    "Ocorrências por característica",
+
+                "description":
+                    (
+                        "Comparação da quantidade de resultados "
+                        "conformes e não conformes por característica."
+                    ),
+
+                "path":
+                    charts.get(
+                        "group_summary"
+                    ),
+
+                "height":
+                    self.CHART_HEIGHT_LARGE,
+            },
+            {
+                "title":
+                    "Desvio médio em relação ao nominal",
+
+                "description":
+                    (
+                        "Comparação do afastamento médio em relação "
+                        "ao nominal para características compatíveis."
+                    ),
+
+                "path":
+                    charts.get(
+                        "mean_deviation"
+                    ),
+
+                "height":
+                    self.CHART_HEIGHT_LARGE,
+            },
         ]
 
-        overall_path = self._as_existing_path(
-            charts.get(
-                "overall_conformity"
-            )
-        )
-
-        if (
-            overall_path is not None
-            and evaluated_count > 0
-        ):
-            blocks.append(
-                {
-                    "title": "Conformidade geral do lote",
-                    "description": (
-                        "Distribuição consolidada dos resultados "
-                        "avaliados no conjunto."
-                    ),
-                    "path": overall_path,
-                    "height": self.CHART_HEIGHT_SMALL,
-                }
+        for candidate in consolidated_candidates:
+            self._append_unique_block(
+                blocks=blocks,
+                seen_paths=seen_paths,
+                block=candidate,
             )
 
-        group_summary_path = self._as_existing_path(
-            charts.get(
-                "group_summary"
-            )
-        )
-
-        if (
-            group_summary_path is not None
-            and len(groups_with_results) >= 2
-        ):
-            blocks.append(
-                {
-                    "title": "Comparação por característica",
-                    "description": (
-                        "Visão comparativa das características "
-                        "dimensionais do lote."
-                    ),
-                    "path": group_summary_path,
-                    "height": self.CHART_HEIGHT_MEDIUM,
-                }
-            )
-
-        characteristic_charts = (
+        for item in (
             charts.get(
                 "characteristic_charts",
-                [],
+                []
             )
             or []
-        )
-
-        for item in characteristic_charts:
-            group = item.get(
-                "group"
-            )
-
-            path = self._as_existing_path(
-                item.get(
-                    "path"
-                )
-            )
-
-            if (
-                group is None
-                or path is None
+        ):
+            if not isinstance(
+                item,
+                dict,
             ):
                 continue
 
-            measurement_count = len(
-                getattr(
-                    group,
-                    "measurements",
-                    [],
-                )
-                or []
+            title = self._clean_text(
+                item.get(
+                    "title"
+                ),
+                fallback="Comportamento por unidade",
             )
 
-            if measurement_count < 3:
-                continue
+            description = self._clean_text(
+                item.get(
+                    "description"
+                ),
+                fallback=(
+                    "Evolução dos valores medidos ao longo "
+                    "das unidades do lote."
+                ),
+            )
 
-            blocks.append(
-                {
-                    "title": self._clean_text(
-                        getattr(
-                            group,
-                            "display_name",
-                            None,
+            self._append_unique_block(
+                blocks=blocks,
+                seen_paths=seen_paths,
+                block={
+                    "title":
+                        title,
+
+                    "description":
+                        description,
+
+                    "path":
+                        item.get(
+                            "path"
                         ),
-                        fallback="Análise por característica",
-                    ),
-                    "description": self._characteristic_description(
-                        group
-                    ),
-                    "path": path,
-                    "height": self.CHART_HEIGHT_MEDIUM,
-                }
+
+                    "height":
+                        self.CHART_HEIGHT_TREND,
+                },
             )
 
         return blocks
+
+    def _append_unique_block(
+        self,
+        *,
+        blocks: list[dict[str, Any]],
+        seen_paths: set[str],
+        block: dict[str, Any],
+    ) -> None:
+        path = self._as_existing_path(
+            block.get(
+                "path"
+            )
+        )
+
+        if path is None:
+            return
+
+        key = str(
+            path.resolve()
+        )
+
+        if key in seen_paths:
+            return
+
+        seen_paths.add(
+            key
+        )
+
+        prepared = dict(
+            block
+        )
+
+        prepared[
+            "path"
+        ] = path
+
+        blocks.append(
+            prepared
+        )
 
     # =============================================================
     # DESENHO
@@ -217,11 +247,11 @@ class DimensionalBatchChartsPage:
         self._draw_section_title(
             page=page,
             layout=layout,
-            title="5. ANÁLISE GRÁFICA DO LOTE",
         )
 
         layout.advance(
-            self.SECTION_TITLE_HEIGHT + self.GAP
+            self.SECTION_TITLE_HEIGHT
+            + self.GAP
         )
 
     def _draw_chart_block(
@@ -255,11 +285,11 @@ class DimensionalBatchChartsPage:
             self._draw_section_title(
                 page=page,
                 layout=layout,
-                title="5. ANÁLISE GRÁFICA DO LOTE",
             )
 
             layout.advance(
-                self.SECTION_TITLE_HEIGHT + self.GAP
+                self.SECTION_TITLE_HEIGHT
+                + self.GAP
             )
 
         self._draw_chart_heading(
@@ -303,15 +333,19 @@ class DimensionalBatchChartsPage:
                     chart_rect.y1 - 10,
                 ),
                 filename=str(
-                    block["path"]
+                    block[
+                        "path"
+                    ]
                 ),
                 keep_proportion=True,
             )
+
         except Exception:
             return
 
         layout.advance(
-            chart_height + self.GAP
+            chart_height
+            + self.GAP
         )
 
     def _draw_chart_heading(
@@ -333,35 +367,41 @@ class DimensionalBatchChartsPage:
             width=0.4,
         )
 
-        title_width = rect.width * 0.42
+        title_width = (
+            rect.width * 0.48
+        )
 
         page.insert_textbox(
             fitz.Rect(
                 rect.x0 + 8,
-                rect.y0 + 7,
-                rect.x0 + title_width,
-                rect.y1 - 4,
+                rect.y0 + 6,
+                rect.x0
+                + title_width,
+                rect.y1 - 5,
             ),
             title,
-            fontsize=6.4,
+            fontsize=6.3,
             fontname="hebo",
             color=self.COLOR_NAVY,
+            lineheight=1.04,
         )
 
         if description:
             page.insert_textbox(
                 fitz.Rect(
-                    rect.x0 + title_width + 6,
+                    rect.x0
+                    + title_width
+                    + 8,
                     rect.y0 + 6,
                     rect.x1 - 8,
-                    rect.y1 - 4,
+                    rect.y1 - 5,
                 ),
                 description,
-                fontsize=5.2,
+                fontsize=5.1,
                 fontname="helv",
                 color=self.COLOR_MUTED,
                 align=fitz.TEXT_ALIGN_RIGHT,
-                lineheight=1.05,
+                lineheight=1.04,
             )
 
     def _draw_section_title(
@@ -369,7 +409,6 @@ class DimensionalBatchChartsPage:
         *,
         page: fitz.Page,
         layout: ReportLayoutEngine,
-        title: str,
     ) -> None:
         rect = layout.full_width_rect(
             self.SECTION_TITLE_HEIGHT
@@ -389,7 +428,7 @@ class DimensionalBatchChartsPage:
                 rect.x1 - 9,
                 rect.y1 - 4,
             ),
-            title,
+            "5. ANÁLISE GRÁFICA DO LOTE",
             fontsize=7.3,
             fontname="hebo",
             color=(1, 1, 1),
@@ -410,6 +449,7 @@ class DimensionalBatchChartsPage:
             path = Path(
                 value
             )
+
         except (
             TypeError,
             ValueError,
@@ -424,76 +464,6 @@ class DimensionalBatchChartsPage:
 
         return path
 
-    def _characteristic_description(
-        self,
-        group: Any,
-    ) -> str:
-        count = len(
-            getattr(
-                group,
-                "measurements",
-                [],
-            )
-            or []
-        )
-
-        parts = [
-            f"{count} medições"
-        ]
-
-        mean = getattr(
-            group,
-            "mean",
-            None,
-        )
-
-        if mean is not None:
-            parts.append(
-                "média "
-                f"{self._format_number(mean)}"
-            )
-
-        standard_deviation = getattr(
-            group,
-            "standard_deviation",
-            None,
-        )
-
-        if standard_deviation is not None:
-            parts.append(
-                "desvio padrão "
-                f"{self._format_number(standard_deviation)}"
-            )
-
-        return " · ".join(
-            parts
-        )
-
-    def _format_number(
-        self,
-        value: Any,
-    ) -> str:
-        if value is None:
-            return "—"
-
-        try:
-            number = float(
-                value
-            )
-        except (
-            TypeError,
-            ValueError,
-        ):
-            return "—"
-
-        return (
-            f"{number:.4f}"
-            .replace(
-                ".",
-                ",",
-            )
-        )
-
     def _clean_text(
         self,
         value: Any,
@@ -506,4 +476,7 @@ class DimensionalBatchChartsPage:
             ).split()
         )
 
-        return cleaned or fallback
+        return (
+            cleaned
+            or fallback
+        )

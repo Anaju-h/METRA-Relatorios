@@ -19,21 +19,19 @@ from services.report_templates.template_catalog import (
 )
 
 
-class CustomRenderer(
-    BaseReportRenderer
-):
+class CustomRenderer(BaseReportRenderer):
     """
-    Renderizador consolidado do relatório personalizado.
+    Renderer definitivo do template Personalizado.
 
-    O conteúdo flui pela página atual e o ReportLayoutEngine
-    cria novas páginas apenas quando realmente necessário.
+    O relatório é montado como um documento técnico narrativo:
+    identificação automática + seções livres + evidências vinculadas
+    + conteúdo estruturado opcional + controle técnico.
+
+    Não cria páginas ou blocos artificiais apenas para preencher espaço.
     """
 
     template_code = PERSONALIZADO
-
-    report_title = (
-        "RELATÓRIO TÉCNICO PERSONALIZADO"
-    )
+    report_title = "RELATÓRIO TÉCNICO PERSONALIZADO"
 
     def __init__(
         self,
@@ -44,23 +42,15 @@ class CustomRenderer(
             base_dir=base_dir
         )
 
-        self.cover_page = (
-            CustomCoverPage(
-                base_dir=base_dir
-            )
+        self.cover_page = CustomCoverPage(
+            base_dir=base_dir
         )
-
-        self.content_page = (
-            CustomContentPage()
-        )
-
+        self.content_page = CustomContentPage()
         self.technical_control_page = (
             CustomTechnicalControlPage()
         )
 
-    def render_document(
-        self,
-    ) -> None:
+    def render_document(self) -> None:
         if self.layout is None:
             raise RuntimeError(
                 "O motor de layout não foi inicializado."
@@ -71,45 +61,28 @@ class CustomRenderer(
                 "O contexto do relatório não foi definido."
             )
 
-        self.cover_page.render(
+        # A capa devolve o próximo número de seção disponível.
+        next_section = self.cover_page.render(
             layout=self.layout,
             render_context=self.render_context,
         )
 
-        has_content = any(
-            [
-                bool(
-                    self.render_context.documents
-                ),
-                bool(
-                    self.render_context.statistical_groups
-                ),
-                bool(
-                    self.render_context.additional_images
-                ),
-                bool(
-                    self.render_context.get_context_value(
-                        "custom_observations"
-                    )
-                ),
-                bool(
-                    self.render_context.get_context_value(
-                        "observations"
-                    )
-                ),
-            ]
+        # As seções livres do Custom entram primeiro e fluem
+        # naturalmente pela página. Documentos/características/
+        # observações automáticas só entram quando realmente existirem
+        # e estiverem habilitados.
+        next_section = self.content_page.render(
+            layout=self.layout,
+            render_context=self.render_context,
+            start_number=next_section,
         )
 
-        if has_content:
-            self.content_page.render(
-                layout=self.layout,
-                render_context=self.render_context,
-            )
-
+        # Controle técnico continua no fluxo atual; não força página nova.
         if self.section_enabled(
             "technical_control"
         ):
             self.technical_control_page.render(
                 layout=self.layout,
                 render_context=self.render_context,
+                start_number=next_section,
             )

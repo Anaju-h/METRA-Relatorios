@@ -14,6 +14,9 @@ from services.report_engine.renderers.dimensional_individual.measurement_page im
 from services.report_engine.renderers.dimensional_individual.results_page import (
     DimensionalIndividualResultsPage,
 )
+from services.report_engine.renderers.dimensional_individual.evidence_page import (
+    DimensionalIndividualEvidencePage,
+)
 from services.report_engine.renderers.dimensional_individual.technical_control_page import (
     DimensionalIndividualTechnicalControlPage,
 )
@@ -75,6 +78,10 @@ class DimensionalIndividualRenderer(
             DimensionalIndividualMeasurementPage()
         )
 
+        self.evidence_page = (
+            DimensionalIndividualEvidencePage()
+        )
+
         self.technical_control_page = (
             DimensionalIndividualTechnicalControlPage()
         )
@@ -104,7 +111,12 @@ class DimensionalIndividualRenderer(
             self._render_results()
 
         if self._has_measurement_content():
-            self._render_measurement_and_evidence()
+            self._render_measurement_and_context()
+
+        if self.section_enabled(
+            "images"
+        ):
+            self._render_evidence()
 
         if self.section_enabled(
             "technical_control"
@@ -147,7 +159,7 @@ class DimensionalIndividualRenderer(
     # MEDIÇÃO E EVIDÊNCIAS
     # =============================================================
 
-    def _render_measurement_and_evidence(
+    def _render_measurement_and_context(
         self,
     ) -> None:
         """
@@ -159,6 +171,22 @@ class DimensionalIndividualRenderer(
         """
 
         self.measurement_page.render(
+            layout=self.layout,
+            render_context=self.render_context,
+        )
+
+    def _render_evidence(
+        self,
+    ) -> None:
+        """
+        Renderiza evidências técnicas em uma seção própria.
+
+        As imagens seguem a ordem definida no processo e utilizam
+        automaticamente as versões preparadas pelo ReportRenderContext,
+        incluindo marcações salvas quando disponíveis.
+        """
+
+        self.evidence_page.render(
             layout=self.layout,
             render_context=self.render_context,
         )

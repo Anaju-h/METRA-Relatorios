@@ -107,10 +107,22 @@ class TomographyTechnicalControlPage:
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
     ) -> None:
-        self._draw_conclusion(
-            layout=layout,
-            render_context=render_context,
-        )
+        if (
+            render_context.findings
+            or self._has_text(
+                render_context.get_context_value(
+                    "tomography_conclusion"
+                )
+            )
+            or self._has_text(
+                render_context.tomography_notes
+            )
+            or render_context.get_report_images()
+        ):
+            self._draw_conclusion(
+                layout=layout,
+                render_context=render_context,
+            )
 
         self._draw_limitations(
             layout=layout,

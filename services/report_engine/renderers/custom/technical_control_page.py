@@ -39,44 +39,53 @@ class CustomTechnicalControlPage:
         *,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
-    ) -> None:
-        self._render_conclusion(
-            layout=layout,
-            render_context=render_context,
+        start_number: int,
+    ) -> int:
+        section_number = start_number
+
+        conclusion = self._resolve_conclusion(
+            render_context
         )
 
-        self._render_control(
-            layout=layout,
-            render_context=render_context,
-        )
+        if self._has_text(conclusion):
+            self._render_conclusion(
+                layout=layout,
+                render_context=render_context,
+                section_number=section_number,
+                conclusion=conclusion,
+            )
+            section_number += 1
 
-        self._render_signatures(
-            layout=layout,
-            render_context=render_context,
-        )
+        if self._has_control_data(
+            render_context
+        ):
+            self._render_control(
+                layout=layout,
+                render_context=render_context,
+                section_number=section_number,
+            )
+            section_number += 1
+
+        if self._has_signature_data(
+            render_context
+        ):
+            self._render_signatures(
+                layout=layout,
+                render_context=render_context,
+                section_number=section_number,
+            )
+            section_number += 1
+
+        return section_number
 
     def _render_conclusion(
         self,
         *,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
+        section_number: int,
+        conclusion: str,
     ) -> None:
-        value = (
-            render_context.get_context_value(
-                "custom_conclusion"
-            )
-            or render_context.get_context_value(
-                "conclusion"
-            )
-        )
-
-        conclusion = self._clean_text(
-            value,
-            fallback=(
-                "O presente relatório consolida as informações "
-                "e evidências disponíveis para o processo analisado."
-            ),
-        )
 
         height = max(
             82.0,
@@ -97,7 +106,7 @@ class CustomTechnicalControlPage:
         self._draw_section_title(
             page=page,
             layout=layout,
-            title="8. CONCLUSÃO",
+            title=f"{section_number}. CONCLUSÃO TÉCNICA",
         )
 
         layout.advance(
@@ -138,6 +147,7 @@ class CustomTechnicalControlPage:
         *,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
+        section_number: int,
     ) -> None:
         control = render_context.technical_control
 
@@ -211,7 +221,7 @@ class CustomTechnicalControlPage:
         self._draw_section_title(
             page=page,
             layout=layout,
-            title="9. CONTROLE TÉCNICO",
+            title=f"{section_number}. CONTROLE TÉCNICO",
         )
 
         layout.advance(
@@ -285,6 +295,7 @@ class CustomTechnicalControlPage:
         *,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
+        section_number: int,
     ) -> None:
         control = render_context.technical_control
 
@@ -316,7 +327,7 @@ class CustomTechnicalControlPage:
         self._draw_section_title(
             page=page,
             layout=layout,
-            title="10. RESPONSABILIDADES",
+            title=f"{section_number}. RESPONSABILIDADES",
         )
 
         layout.advance(
@@ -418,6 +429,73 @@ class CustomTechnicalControlPage:
 
         layout.advance(
             box_height
+        )
+
+    def _resolve_conclusion(
+        self,
+        render_context: ReportRenderContext,
+    ) -> str:
+        value = (
+            render_context.get_context_value(
+                "custom_conclusion"
+            )
+            or render_context.get_context_value(
+                "conclusion"
+            )
+        )
+
+        return self._clean_text(
+            value,
+            fallback="",
+        )
+
+    def _has_control_data(
+        self,
+        render_context: ReportRenderContext,
+    ) -> bool:
+        control = render_context.technical_control
+
+        if control is None:
+            return False
+
+        return any(
+            self._has_text(
+                getattr(
+                    control,
+                    field,
+                    None,
+                )
+            )
+            for field in (
+                "status",
+                "prepared_by",
+                "prepared_at",
+                "reviewed_by",
+                "reviewed_at",
+            )
+        )
+
+    def _has_signature_data(
+        self,
+        render_context: ReportRenderContext,
+    ) -> bool:
+        control = render_context.technical_control
+
+        if control is None:
+            return False
+
+        return any(
+            self._has_text(
+                getattr(
+                    control,
+                    field,
+                    None,
+                )
+            )
+            for field in (
+                "prepared_by",
+                "reviewed_by",
+            )
         )
 
     def _draw_section_title(

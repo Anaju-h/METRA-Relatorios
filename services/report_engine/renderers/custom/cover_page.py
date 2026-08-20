@@ -104,7 +104,7 @@ class CustomCoverPage:
         *,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
-    ) -> None:
+    ) -> int:
         page = layout.ensure_page()
 
         self._draw_report_identity(
@@ -113,23 +113,34 @@ class CustomCoverPage:
             render_context=render_context,
         )
 
+        section_number = 1
+
         self._draw_process_and_image(
             page=page,
             layout=layout,
             render_context=render_context,
+            section_number=section_number,
+        )
+        section_number += 1
+
+        scope = self._resolve_scope(
+            render_context
         )
 
-        self._draw_scope(
-            page=page,
-            layout=layout,
-            render_context=render_context,
-        )
+        if self._has_text(scope):
+            self._draw_scope(
+                page=page,
+                layout=layout,
+                render_context=render_context,
+                section_number=section_number,
+                description=scope,
+            )
+            section_number += 1
 
-        self._draw_available_data_summary(
-            page=page,
-            layout=layout,
-            render_context=render_context,
-        )
+        # No relatório personalizado, não exibimos um resumo artificial
+        # de contagem de documentos/imagens. O conteúdo real aparece nas
+        # próprias seções quando existir e estiver habilitado.
+        return section_number
 
     # =============================================================
     # IDENTIDADE
@@ -256,8 +267,15 @@ class CustomCoverPage:
         page: fitz.Page,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
+        section_number: int,
     ) -> None:
-        block_height = 214.0
+        has_primary_image = (
+            render_context.primary_image is not None
+            and render_context.primary_report_image_path is not None
+            and render_context.primary_report_image_path.exists()
+        )
+
+        block_height = 214.0 if has_primary_image else 188.0
 
         layout.ensure_space(
             block_height
@@ -266,14 +284,17 @@ class CustomCoverPage:
         gap = 10.0
 
         left_width = (
-            layout.geometry.content_width
-            * 0.56
+            layout.geometry.content_width * 0.56
+            if has_primary_image
+            else layout.geometry.content_width
         )
 
         right_width = (
             layout.geometry.content_width
             - left_width
             - gap
+            if has_primary_image
+            else 0.0
         )
 
         start_y = (
@@ -288,26 +309,31 @@ class CustomCoverPage:
             start_y + block_height,
         )
 
-        right_rect = fitz.Rect(
-            left_rect.x1 + gap,
-            start_y,
-            left_rect.x1
-            + gap
-            + right_width,
-            start_y + block_height,
+        right_rect = (
+            fitz.Rect(
+                left_rect.x1 + gap,
+                start_y,
+                left_rect.x1
+                + gap
+                + right_width,
+                start_y + block_height,
+            )
+            if has_primary_image
+            else None
         )
 
         self._draw_panel_title(
             page=page,
             rect=left_rect,
-            title="1. IDENTIFICAÇÃO DO PROCESSO",
+            title=f"{section_number}. IDENTIFICAÇÃO DO PROCESSO",
         )
 
-        self._draw_panel_title(
-            page=page,
-            rect=right_rect,
-            title="IMAGEM PRINCIPAL",
-        )
+        if right_rect is not None:
+            self._draw_panel_title(
+                page=page,
+                rect=right_rect,
+                title="IMAGEM PRINCIPAL",
+            )
 
         rows = [
             (
@@ -342,6 +368,12 @@ class CustomCoverPage:
             ),
         ]
 
+        rows = [
+            (label, value)
+            for label, value in rows
+            if self._has_text(value)
+        ]
+
         self._draw_identification_rows(
             page=page,
             rect=fitz.Rect(
@@ -354,17 +386,18 @@ class CustomCoverPage:
             rows=rows,
         )
 
-        self._draw_primary_image(
-            page=page,
-            rect=fitz.Rect(
-                right_rect.x0,
-                right_rect.y0
-                + self.SECTION_TITLE_HEIGHT,
-                right_rect.x1,
-                right_rect.y1,
-            ),
-            render_context=render_context,
-        )
+        if right_rect is not None:
+            self._draw_primary_image(
+                page=page,
+                rect=fitz.Rect(
+                    right_rect.x0,
+                    right_rect.y0
+                    + self.SECTION_TITLE_HEIGHT,
+                    right_rect.x1,
+                    right_rect.y1,
+                ),
+                render_context=render_context,
+            )
 
         layout.advance(
             block_height + self.GAP
@@ -380,10 +413,9 @@ class CustomCoverPage:
         page: fitz.Page,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
+        section_number: int,
+        description: str,
     ) -> None:
-        description = self._resolve_scope(
-            render_context
-        )
 
         height = self._text_block_height(
             description,
@@ -402,7 +434,7 @@ class CustomCoverPage:
             rect=layout.full_width_rect(
                 self.SECTION_TITLE_HEIGHT
             ),
-            title="2. ESCOPO / DESCRIÇÃO",
+            title=f"{section_number}. ESCOPO / DESCRIÇÃO",
         )
 
         layout.advance(
@@ -448,6 +480,7 @@ class CustomCoverPage:
         page: fitz.Page,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
+        section_number: int,
     ) -> None:
         title_height = (
             self.SECTION_TITLE_HEIGHT
@@ -470,7 +503,7 @@ class CustomCoverPage:
             rect=layout.full_width_rect(
                 title_height
             ),
-            title="3. DADOS DISPONÍVEIS",
+            title=f"{section_number}. DADOS DISPONÍVEIS",
         )
 
         document_count = len(
@@ -515,6 +548,15 @@ class CustomCoverPage:
                 "estruturadas",
             ),
         ]
+
+        indicators = [
+            item
+            for item in indicators
+            if int(item[1] or 0) > 0
+        ]
+
+        if not indicators:
+            return
 
         gap = 8.0
 
@@ -877,31 +919,65 @@ class CustomCoverPage:
         self,
         render_context: ReportRenderContext,
     ) -> str:
-        candidates = [
+        """
+        Escopo do template Personalizado.
+
+        No Custom não usamos escopos automáticos genéricos como
+        "peça única" ou "relatório de peça única". O bloco só aparece
+        quando existir um escopo técnico realmente informado para o
+        relatório personalizado.
+        """
+        value = (
             render_context.get_context_value(
                 "custom_scope"
-            ),
-            render_context.get_context_value(
-                "report_scope"
-            ),
-            render_context.get_context_value(
-                "inspection_objective"
-            ),
-            render_context.project.description,
-        ]
+            )
+            or render_context.get_context_value(
+                "custom_report_scope"
+            )
+        )
 
-        for value in candidates:
-            if self._has_text(
-                value
-            ):
-                return self._clean_text(
-                    value
-                )
+        if not self._has_text(
+            value
+        ):
+            return ""
 
-        return (
-            "Relatório técnico personalizado elaborado com "
-            "base nas informações, documentos e evidências "
-            "disponíveis no processo."
+        cleaned = self._clean_text(
+            value,
+            fallback="",
+        )
+
+        generic_values = {
+            "peça única",
+            "peca unica",
+            "relatório de peça única",
+            "relatorio de peca unica",
+            "relatório personalizado",
+            "relatorio personalizado",
+            "personalizado",
+        }
+
+        if cleaned.strip().lower() in generic_values:
+            return ""
+
+        return cleaned
+
+    def _has_available_data(
+        self,
+        render_context: ReportRenderContext,
+    ) -> bool:
+        return any(
+            (
+                len(render_context.documents) > 0,
+                len(render_context.images) > 0,
+                len(render_context.extractions) > 0,
+                int(
+                    render_context.overall_statistics.get(
+                        "group_count",
+                        0,
+                    )
+                    or 0
+                ) > 0,
+            )
         )
 
     # =============================================================

@@ -29,22 +29,32 @@ class TomographyAnalysisPage:
         render_context: ReportRenderContext,
     ) -> None:
         images = self._collect_images(render_context)
-        notes = self._resolve_notes(render_context)
 
-        if not images and not notes:
+        if not images:
             return
 
-        if images:
-            self._draw_images(
-                layout=layout,
-                images=images,
-            )
+        self._draw_images(
+            layout=layout,
+            images=images,
+        )
 
-        if notes:
-            self._draw_notes(
-                layout=layout,
-                notes=notes,
-            )
+    def render_notes(
+        self,
+        *,
+        layout: ReportLayoutEngine,
+        render_context: ReportRenderContext,
+    ) -> None:
+        notes = self._resolve_notes(
+            render_context
+        )
+
+        if not notes:
+            return
+
+        self._draw_notes(
+            layout=layout,
+            notes=notes,
+        )
 
     def _draw_images(
         self,
@@ -52,25 +62,40 @@ class TomographyAnalysisPage:
         layout: ReportLayoutEngine,
         images: list[dict[str, Any]],
     ) -> None:
-        page = layout.ensure_space(
-            self.SECTION_TITLE_HEIGHT,
-            repeated_title="ANÁLISE TOMOGRÁFICA",
-        )
-        self._draw_section_title(
-            page=page,
-            layout=layout,
-            title="3. EVIDÊNCIAS TOMOGRÁFICAS",
-        )
-        layout.advance(
-            self.SECTION_TITLE_HEIGHT + self.GAP
-        )
+        title_drawn = False
 
         for start in range(0, len(images), 2):
             row_items = images[start:start + 2]
-            page = layout.ensure_space(
-                self.IMAGE_HEIGHT + self.GAP,
-                repeated_title="EVIDÊNCIAS TOMOGRÁFICAS",
-            )
+
+            if not title_drawn:
+                # O título acompanha o primeiro bloco de evidências.
+                # Se houver espaço, aproveita a página atual; se não houver,
+                # título e imagens migram juntos para a próxima.
+                page = layout.ensure_space(
+                    self.SECTION_TITLE_HEIGHT
+                    + self.GAP
+                    + self.IMAGE_HEIGHT
+                    + self.GAP,
+                    repeated_title="EVIDÊNCIAS TOMOGRÁFICAS",
+                )
+
+                self._draw_section_title(
+                    page=page,
+                    layout=layout,
+                    title="3. EVIDÊNCIAS TOMOGRÁFICAS",
+                )
+                layout.advance(
+                    self.SECTION_TITLE_HEIGHT
+                    + self.GAP
+                )
+                title_drawn = True
+                page = layout.current_page
+
+            else:
+                page = layout.ensure_space(
+                    self.IMAGE_HEIGHT + self.GAP,
+                    repeated_title="EVIDÊNCIAS TOMOGRÁFICAS",
+                )
 
             gap = 10.0
             card_width = (
@@ -166,7 +191,7 @@ class TomographyAnalysisPage:
         self._draw_section_title(
             page=page,
             layout=layout,
-            title="4. OBSERVAÇÕES DA ANÁLISE",
+            title="6. OBSERVAÇÕES DA ANÁLISE",
         )
         layout.advance(self.SECTION_TITLE_HEIGHT)
 

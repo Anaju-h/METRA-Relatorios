@@ -2,17 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import textwrap
 import unicodedata
 from typing import Any, Optional
 
 import matplotlib
 
-matplotlib.use(
-    "Agg"
-)
+matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 
 from models.statistical_characteristic import (
     StatisticalCharacteristic,
@@ -21,16 +19,16 @@ from models.statistical_characteristic import (
 
 class ReportChartService:
     """
-    Gera gráficos técnicos a partir do resultado estatístico.
+    Gera gráficos técnicos do METRA.
 
-    Nenhum gráfico depende de um nome específico de característica.
-    O formato é escolhido conforme:
+    Para relatórios em lote, o pacote padrão combina:
+    - conformidade geral;
+    - ocorrências por característica;
+    - desvio médio quando houver um conjunto compatível;
+    - até três gráficos de tendência por característica.
 
-    - quantidade de unidades;
-    - disponibilidade de nominal;
-    - disponibilidade de tolerâncias;
-    - quantidade de resultados;
-    - status de conformidade.
+    Os gráficos de tendência são selecionados automaticamente,
+    priorizando não conformidades e características com várias medições.
     """
 
     COLOR_NAVY = "#0B2748"
@@ -45,6 +43,8 @@ class ReportChartService:
 
     COLOR_GRID = "#D6DCE2"
     COLOR_BACKGROUND = "#FFFFFF"
+
+    DEFAULT_TREND_CHARTS = 3
 
     def generate_charts(
         self,
@@ -61,9 +61,7 @@ class ReportChartService:
             exist_ok=True,
         )
 
-        generated_files: list[
-            Path
-        ] = []
+        generated_files: list[Path] = []
 
         overall = statistics.get(
             "overall",
@@ -72,93 +70,189 @@ class ReportChartService:
 
         groups: list[
             StatisticalCharacteristic
-        ] = statistics.get(
-            "chart_candidates",
-            [],
+        ] = (
+            statistics.get(
+                "chart_candidates",
+                [],
+            )
+            or []
         )
 
-        conformity_chart = (
-            output_dir
-            / "conformidade_geral.png"
+        # ---------------------------------------------------------
+        # 1. CONFORMIDADE GERAL
+        # ---------------------------------------------------------
+
+        overall_path = (
+            self.generate_overall_conformity_chart(
+                overall=overall,
+                output_path=(
+                    output_dir
+                    / "conformidade_geral.png"
+                ),
+            )
         )
 
-        self.generate_overall_conformity_chart(
-            overall=overall,
-            output_path=conformity_chart,
+        self._append_generated(
+            generated_files,
+            overall_path,
         )
 
-        generated_files.append(
-            conformity_chart
-        )
+        # ---------------------------------------------------------
+        # 2. OCORRÊNCIAS POR CARACTERÍSTICA
+        # ---------------------------------------------------------
 
-        group_summary_chart = (
-            output_dir
-            / "resumo_por_caracteristica.png"
-        )
+        group_summary_path = None
 
-        self.generate_group_summary_chart(
-            groups=groups,
-            output_path=group_summary_chart,
-        )
+        summary_groups = [
+            group
+            for group in groups
+            if int(
+                getattr(
+                    group,
+                    "count",
+                    0,
+                )
+                or 0
+            ) > 0
+        ][:14]
 
-        if group_summary_chart.exists():
-            generated_files.append(
-                group_summary_chart
+        if summary_groups:
+            group_summary_path = (
+                self._generate_conformity_summary_chart(
+                    groups=summary_groups,
+                    output_path=(
+                        output_dir
+                        / "ocorrencias_por_caracteristica.png"
+                    ),
+                )
             )
 
-        characteristic_charts = []
+        self._append_generated(
+            generated_files,
+            group_summary_path,
+        )
+
+        # ---------------------------------------------------------
+        # 3. DESVIO MÉDIO
+        # ---------------------------------------------------------
+
+        mean_deviation_groups = (
+            self._select_compatible_deviation_groups(
+                groups
+            )
+        )
+
+        mean_deviation_path = None
+
+        if mean_deviation_groups:
+            mean_deviation_path = (
+                self._generate_batch_mean_deviation_chart(
+                    groups=mean_deviation_groups[
+                        :12
+                    ],
+                    output_path=(
+                        output_dir
+                        / "desvio_medio_por_caracteristica.png"
+                    ),
+                )
+            )
+
+        self._append_generated(
+            generated_files,
+            mean_deviation_path,
+        )
+
+        # ---------------------------------------------------------
+        # 4. TENDÊNCIAS POR CARACTERÍSTICA
+        # ---------------------------------------------------------
+
+        requested_limit = int(
+            maximum_characteristic_charts
+            or 0
+        )
+
+        trend_limit = min(
+            self.DEFAULT_TREND_CHARTS,
+            (
+                requested_limit
+                if requested_limit > 0
+                else self.DEFAULT_TREND_CHARTS
+            ),
+        )
+
+        characteristic_charts: list[
+            dict[str, Any]
+        ] = []
+
+        selected_trends = (
+            self._select_trend_groups(
+                groups,
+                maximum=trend_limit,
+            )
+        )
 
         for index, group in enumerate(
-            groups[
-                :maximum_characteristic_charts
-            ],
+            selected_trends,
             start=1,
         ):
-            safe_name = self._safe_file_name(
-                group.display_name
+            file_name = (
+                f"tendencia_{index:02d}_"
+                f"{self._safe_file_name(group.display_name)}.png"
             )
 
-            output_path = (
-                output_dir
-                / (
-                    f"caracteristica_"
-                    f"{index:02d}_"
-                    f"{safe_name}.png"
-                )
-            )
-
-            generated = (
+            chart_path = (
                 self.generate_characteristic_chart(
                     group=group,
-                    output_path=output_path,
+                    output_path=(
+                        output_dir
+                        / file_name
+                    ),
                 )
             )
 
-            if generated is not None:
-                characteristic_charts.append(
-                    {
-                        "group":
+            if (
+                chart_path is None
+                or not chart_path.exists()
+            ):
+                continue
+
+            generated_files.append(
+                chart_path
+            )
+
+            characteristic_charts.append(
+                {
+                    "key":
+                        getattr(
                             group,
+                            "key",
+                            file_name,
+                        ),
 
-                        "path":
-                            generated,
-                    }
-                )
+                    "title":
+                        self._display_label(
+                            group.display_name
+                        ),
 
-                generated_files.append(
-                    generated
-                )
+                    "description":
+                        self._trend_description(
+                            group
+                        ),
+
+                    "path":
+                        chart_path,
+                }
+            )
 
         return {
             "overall_conformity":
-                conformity_chart,
+                overall_path,
 
             "group_summary":
-                (
-                    group_summary_chart
-                    if group_summary_chart.exists()
-                    else None
-                ),
+                group_summary_path,
+
+            "mean_deviation":
+                mean_deviation_path,
 
             "characteristic_charts":
                 characteristic_charts,
@@ -168,6 +262,171 @@ class ReportChartService:
         }
 
     # =============================================================
+    # SELEÇÃO DOS GRÁFICOS
+    # =============================================================
+
+    def _select_trend_groups(
+        self,
+        groups: list[
+            StatisticalCharacteristic
+        ],
+        *,
+        maximum: int,
+    ) -> list[
+        StatisticalCharacteristic
+    ]:
+        if maximum <= 0:
+            return []
+
+        candidates = [
+            group
+            for group in groups
+            if int(
+                getattr(
+                    group,
+                    "valid_numeric_count",
+                    0,
+                )
+                or 0
+            ) >= 2
+        ]
+
+        candidates.sort(
+            key=lambda group: (
+                0
+                if int(
+                    getattr(
+                        group,
+                        "nok_count",
+                        0,
+                    )
+                    or 0
+                ) > 0
+                else 1,
+
+                -int(
+                    getattr(
+                        group,
+                        "valid_numeric_count",
+                        0,
+                    )
+                    or 0
+                ),
+
+                -self._relative_amplitude(
+                    group
+                ),
+
+                self._display_label(
+                    getattr(
+                        group,
+                        "display_name",
+                        "",
+                    )
+                ).upper(),
+            )
+        )
+
+        selected: list[
+            StatisticalCharacteristic
+        ] = []
+
+        seen_keys: set[str] = set()
+
+        for group in candidates:
+            unique_key = str(
+                getattr(
+                    group,
+                    "key",
+                    "",
+                )
+                or self._chart_identity(
+                    group
+                )
+            )
+
+            if unique_key in seen_keys:
+                continue
+
+            seen_keys.add(
+                unique_key
+            )
+
+            selected.append(
+                group
+            )
+
+            if len(selected) >= maximum:
+                break
+
+        return selected
+
+    def _select_compatible_deviation_groups(
+        self,
+        groups: list[
+            StatisticalCharacteristic
+        ],
+    ) -> list[
+        StatisticalCharacteristic
+    ]:
+        candidates = [
+            group
+            for group in groups
+            if getattr(
+                group,
+                "mean",
+                None,
+            )
+            is not None
+            and getattr(
+                group,
+                "nominal_value",
+                None,
+            )
+            is not None
+        ]
+
+        if not candidates:
+            return []
+
+        buckets: dict[
+            str,
+            list[StatisticalCharacteristic],
+        ] = {}
+
+        for group in candidates:
+            unit_key = self._normalize_unit_for_chart(
+                getattr(
+                    group,
+                    "unit",
+                    None,
+                )
+            )
+
+            buckets.setdefault(
+                unit_key,
+                [],
+            ).append(
+                group
+            )
+
+        selected_key = max(
+            buckets,
+            key=lambda key: len(
+                buckets[key]
+            ),
+        )
+
+        selected = buckets[
+            selected_key
+        ]
+
+        if len(selected) < 2:
+            return []
+
+        return selected
+
+    # =============================================================
     # CONFORMIDADE GERAL
     # =============================================================
 
@@ -175,7 +434,7 @@ class ReportChartService:
         self,
         overall: dict[str, Any],
         output_path: str | Path,
-    ) -> Path:
+    ) -> Optional[Path]:
         destination = Path(
             output_path
         )
@@ -204,19 +463,17 @@ class ReportChartService:
             or 0
         )
 
-        labels = []
-        values = []
-        colors = []
+        labels: list[str] = []
+        values: list[int] = []
+        colors: list[str] = []
 
         if ok_count > 0:
             labels.append(
                 "Conformes"
             )
-
             values.append(
                 ok_count
             )
-
             colors.append(
                 self.COLOR_OK
             )
@@ -225,11 +482,9 @@ class ReportChartService:
             labels.append(
                 "Não conformes"
             )
-
             values.append(
                 nok_count
             )
-
             colors.append(
                 self.COLOR_NOK
             )
@@ -238,33 +493,18 @@ class ReportChartService:
             labels.append(
                 "Não avaliadas"
             )
-
             values.append(
                 unknown_count
             )
-
             colors.append(
                 self.COLOR_UNKNOWN
             )
 
         if not values:
-            labels = [
-                "Sem resultados"
-            ]
-
-            values = [
-                1
-            ]
-
-            colors = [
-                self.COLOR_UNKNOWN
-            ]
+            return None
 
         figure, axes = plt.subplots(
-            figsize=(
-                7.0,
-                3.1,
-            ),
+            figsize=(7.0, 3.1),
             dpi=160,
         )
 
@@ -282,13 +522,7 @@ class ReportChartService:
             colors=colors,
             startangle=90,
             counterclock=False,
-            autopct=(
-                self._autopct
-                if sum(
-                    values
-                ) > 0
-                else None
-            ),
+            autopct=self._autopct,
             pctdistance=0.78,
             wedgeprops={
                 "width":
@@ -307,12 +541,6 @@ class ReportChartService:
                 "weight":
                     "bold",
             },
-        )
-
-        total = (
-            ok_count
-            + nok_count
-            + unknown_count
         )
 
         conformity = float(
@@ -337,11 +565,7 @@ class ReportChartService:
         axes.text(
             0,
             -0.15,
-            (
-                "conformidade"
-                if total > 0
-                else "sem dados"
-            ),
+            "conformidade",
             ha="center",
             va="center",
             fontsize=8,
@@ -396,821 +620,8 @@ class ReportChartService:
         return destination
 
     # =============================================================
-    # RESUMO POR CARACTERÍSTICA
+    # OCORRÊNCIAS POR CARACTERÍSTICA
     # =============================================================
-
-    def generate_group_summary_chart(
-        self,
-        groups: list[
-            StatisticalCharacteristic
-        ],
-        output_path: str | Path,
-        maximum_groups: int = 12,
-    ) -> Optional[Path]:
-        destination = Path(
-            output_path
-        )
-
-        selected_groups = [
-            group
-            for group in groups
-            if group.count > 0
-        ][
-            :maximum_groups
-        ]
-
-        if not selected_groups:
-            return None
-
-        is_batch = any(
-            bool(
-                getattr(
-                    group,
-                    "is_batch_characteristic",
-                    False,
-                )
-            )
-            or int(
-                getattr(
-                    group,
-                    "valid_numeric_count",
-                    0,
-                )
-                or 0
-            ) > 1
-            for group in selected_groups
-        )
-
-        if is_batch:
-            evaluated_results = sum(
-                int(
-                    getattr(
-                        group,
-                        "ok_count",
-                        0,
-                    )
-                    or 0
-                )
-                + int(
-                    getattr(
-                        group,
-                        "nok_count",
-                        0,
-                    )
-                    or 0
-                )
-                for group in selected_groups
-            )
-
-            if evaluated_results > 0:
-                return self._generate_conformity_summary_chart(
-                    groups=selected_groups,
-                    output_path=destination,
-                )
-
-            mean_deviation_groups = [
-                group
-                for group in selected_groups
-                if (
-                    getattr(
-                        group,
-                        "mean",
-                        None,
-                    )
-                    is not None
-                    and getattr(
-                        group,
-                        "nominal_value",
-                        None,
-                    )
-                    is not None
-                )
-            ]
-
-            if mean_deviation_groups:
-                return self._generate_batch_mean_deviation_chart(
-                    groups=mean_deviation_groups,
-                    output_path=destination,
-                )
-
-            return None
-
-        tolerance_groups = [
-            group
-            for group in selected_groups
-            if (
-                group.valid_numeric_count == 1
-                and group.lower_limit is not None
-                and group.upper_limit is not None
-                and group.upper_limit != group.lower_limit
-            )
-        ]
-
-        if tolerance_groups:
-            return self._generate_tolerance_position_chart(
-                groups=tolerance_groups,
-                output_path=destination,
-            )
-
-        deviation_groups = [
-            group
-            for group in selected_groups
-            if (
-                group.valid_numeric_count == 1
-                and group.nominal_value is not None
-                and self._first_numeric_value(
-                    group
-                ) is not None
-            )
-        ]
-
-        if deviation_groups:
-            return self._generate_deviation_from_nominal_chart(
-                groups=deviation_groups,
-                output_path=destination,
-            )
-
-        return None
-
-    def _generate_tolerance_position_chart(
-        self,
-        *,
-        groups: list[
-            StatisticalCharacteristic
-        ],
-        output_path: Path,
-    ) -> Optional[Path]:
-        labels = []
-        positions = []
-        colors = []
-
-        for group in groups:
-            measured_value = self._first_numeric_value(
-                group
-            )
-
-            if measured_value is None:
-                continue
-
-            lower = float(
-                group.lower_limit
-            )
-
-            upper = float(
-                group.upper_limit
-            )
-
-            tolerance_range = (
-                upper - lower
-            )
-
-            if tolerance_range == 0:
-                continue
-
-            normalized = (
-                (
-                    measured_value
-                    - lower
-                )
-                / tolerance_range
-                * 100.0
-            )
-
-            labels.append(
-                self._short_label(
-                    group.display_name,
-                    maximum_length=30,
-                )
-            )
-
-            positions.append(
-                normalized
-            )
-
-            status = self._first_measurement_status(
-                group
-            )
-
-            colors.append(
-                (
-                    self.COLOR_NOK
-                    if status == "NOK"
-                    else (
-                        self.COLOR_OK
-                        if status == "OK"
-                        else self.COLOR_BLUE
-                    )
-                )
-            )
-
-        if not positions:
-            return None
-
-        figure_height = max(
-            3.2,
-            len(labels) * 0.42 + 1.35,
-        )
-
-        figure, axes = plt.subplots(
-            figsize=(
-                8.4,
-                figure_height,
-            ),
-            dpi=160,
-        )
-
-        figure.patch.set_facecolor(
-            self.COLOR_BACKGROUND
-        )
-
-        axes.set_facecolor(
-            self.COLOR_BACKGROUND
-        )
-
-        y_values = list(
-            range(
-                len(labels)
-            )
-        )
-
-        axes.axvspan(
-            0,
-            100,
-            color=self.COLOR_OK,
-            alpha=0.07,
-            zorder=0,
-        )
-
-        axes.axvline(
-            0,
-            color=self.COLOR_LIMIT,
-            linewidth=1.1,
-            linestyle=":",
-            label="Limites de tolerância",
-            zorder=1,
-        )
-
-        axes.axvline(
-            100,
-            color=self.COLOR_LIMIT,
-            linewidth=1.1,
-            linestyle=":",
-            zorder=1,
-        )
-
-        axes.axvline(
-            50,
-            color=self.COLOR_NOMINAL,
-            linewidth=0.9,
-            linestyle="--",
-            alpha=0.70,
-            label="Centro da faixa",
-            zorder=1,
-        )
-
-        axes.scatter(
-            positions,
-            y_values,
-            s=64,
-            c=colors,
-            edgecolors=self.COLOR_BACKGROUND,
-            linewidths=0.8,
-            zorder=3,
-        )
-
-        axes.set_yticks(
-            y_values
-        )
-
-        axes.set_yticklabels(
-            labels,
-            fontsize=8,
-        )
-
-        axes.invert_yaxis()
-
-        minimum_x = min(
-            -10.0,
-            min(positions) - 8.0,
-        )
-
-        maximum_x = max(
-            110.0,
-            max(positions) + 8.0,
-        )
-
-        axes.set_xlim(
-            minimum_x,
-            maximum_x,
-        )
-
-        axes.set_xlabel(
-            (
-                "Posição do valor medido na faixa de tolerância "
-                "(0% = limite inferior; 100% = limite superior)"
-            ),
-            fontsize=8.0,
-        )
-
-        axes.set_title(
-            "Posição das características na faixa de tolerância",
-            fontsize=11,
-            fontweight="bold",
-            color=self.COLOR_NAVY,
-            pad=10,
-        )
-
-        axes.grid(
-            axis="x",
-            color=self.COLOR_GRID,
-            linewidth=0.6,
-            alpha=0.72,
-        )
-
-        axes.set_axisbelow(
-            True
-        )
-
-        self._clean_axes(
-            axes
-        )
-
-        handles, legend_labels = (
-            axes.get_legend_handles_labels()
-        )
-
-        if handles:
-            axes.legend(
-                handles,
-                legend_labels,
-                loc="lower center",
-                bbox_to_anchor=(
-                    0.5,
-                    -0.28,
-                ),
-                ncol=2,
-                frameon=False,
-                fontsize=7.5,
-            )
-
-        figure.tight_layout(
-            pad=1.0
-        )
-
-        figure.savefig(
-            output_path,
-            bbox_inches="tight",
-            facecolor=self.COLOR_BACKGROUND,
-        )
-
-        plt.close(
-            figure
-        )
-
-        return output_path
-
-    def _generate_deviation_from_nominal_chart(
-        self,
-        *,
-        groups: list[
-            StatisticalCharacteristic
-        ],
-        output_path: Path,
-    ) -> Optional[Path]:
-        rows = []
-
-        for group in groups:
-            measured = self._first_numeric_value(
-                group
-            )
-
-            if measured is None:
-                continue
-
-            try:
-                nominal = float(
-                    group.nominal_value
-                )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                continue
-
-            deviation = (
-                measured - nominal
-            )
-
-            unit = str(
-                getattr(
-                    group,
-                    "unit",
-                    "",
-                )
-                or ""
-            ).strip()
-
-            rows.append(
-                (
-                    self._short_label(
-                        group.display_name,
-                        maximum_length=30,
-                    ),
-                    deviation,
-                    unit,
-                    self._first_measurement_status(
-                        group
-                    ),
-                )
-            )
-
-        if not rows:
-            return None
-
-        units = {
-            unit
-            for _, _, unit, _ in rows
-            if unit
-        }
-
-        if len(units) > 1:
-            return None
-
-        labels = [
-            row[0]
-            for row in rows
-        ]
-
-        deviations = [
-            row[1]
-            for row in rows
-        ]
-
-        colors = [
-            (
-                self.COLOR_NOK
-                if status == "NOK"
-                else (
-                    self.COLOR_OK
-                    if status == "OK"
-                    else self.COLOR_BLUE
-                )
-            )
-            for _, _, _, status in rows
-        ]
-
-        unit = next(
-            iter(units),
-            "",
-        )
-
-        figure_height = max(
-            3.2,
-            len(rows) * 0.42 + 1.30,
-        )
-
-        figure, axes = plt.subplots(
-            figsize=(
-                8.4,
-                figure_height,
-            ),
-            dpi=160,
-        )
-
-        figure.patch.set_facecolor(
-            self.COLOR_BACKGROUND
-        )
-
-        axes.set_facecolor(
-            self.COLOR_BACKGROUND
-        )
-
-        positions = list(
-            range(
-                len(rows)
-            )
-        )
-
-        axes.barh(
-            positions,
-            deviations,
-            color=colors,
-            height=0.52,
-        )
-
-        axes.axvline(
-            0,
-            color=self.COLOR_NOMINAL,
-            linewidth=1.2,
-            linestyle="--",
-        )
-
-        axes.set_yticks(
-            positions
-        )
-
-        axes.set_yticklabels(
-            labels,
-            fontsize=8,
-        )
-
-        axes.invert_yaxis()
-
-        axis_label = (
-            f"Desvio em relação ao nominal ({unit})"
-            if unit
-            else "Desvio em relação ao nominal"
-        )
-
-        axes.set_xlabel(
-            axis_label,
-            fontsize=8.3,
-        )
-
-        axes.set_title(
-            "Desvio em relação ao valor nominal",
-            fontsize=11,
-            fontweight="bold",
-            color=self.COLOR_NAVY,
-            pad=10,
-        )
-
-        axes.grid(
-            axis="x",
-            color=self.COLOR_GRID,
-            linewidth=0.6,
-            alpha=0.75,
-        )
-
-        axes.set_axisbelow(
-            True
-        )
-
-        self._clean_axes(
-            axes
-        )
-
-        for y, value in zip(
-            positions,
-            deviations,
-        ):
-            offset = (
-                4
-                if value >= 0
-                else -4
-            )
-
-            alignment = (
-                "left"
-                if value >= 0
-                else "right"
-            )
-
-            axes.annotate(
-                self._format_number(
-                    value
-                ),
-                xy=(
-                    value,
-                    y,
-                ),
-                xytext=(
-                    offset,
-                    0,
-                ),
-                textcoords="offset points",
-                ha=alignment,
-                va="center",
-                fontsize=7.5,
-                color=self.COLOR_NOMINAL,
-            )
-
-        figure.tight_layout(
-            pad=1.0
-        )
-
-        figure.savefig(
-            output_path,
-            bbox_inches="tight",
-            facecolor=self.COLOR_BACKGROUND,
-        )
-
-        plt.close(
-            figure
-        )
-
-        return output_path
-
-    def _generate_batch_mean_deviation_chart(
-        self,
-        *,
-        groups: list[
-            StatisticalCharacteristic
-        ],
-        output_path: Path,
-    ) -> Optional[Path]:
-        rows = []
-
-        for group in groups:
-            try:
-                mean_value = float(
-                    group.mean
-                )
-
-                nominal_value = float(
-                    group.nominal_value
-                )
-
-            except (
-                TypeError,
-                ValueError,
-            ):
-                continue
-
-            unit = str(
-                getattr(
-                    group,
-                    "unit",
-                    "",
-                )
-                or ""
-            ).strip()
-
-            rows.append(
-                (
-                    self._short_label(
-                        group.display_name,
-                        maximum_length=30,
-                    ),
-                    mean_value - nominal_value,
-                    unit,
-                )
-            )
-
-        if not rows:
-            return None
-
-        units = {
-            unit
-            for _, _, unit in rows
-            if unit
-        }
-
-        # Não mistura grandezas incompatíveis no mesmo eixo.
-        if len(units) > 1:
-            return None
-
-        labels = [
-            label
-            for label, _, _ in rows
-        ]
-
-        deviations = [
-            deviation
-            for _, deviation, _ in rows
-        ]
-
-        unit = next(
-            iter(units),
-            "",
-        )
-
-        figure_height = max(
-            3.2,
-            len(rows) * 0.42 + 1.35,
-        )
-
-        figure, axes = plt.subplots(
-            figsize=(
-                8.4,
-                figure_height,
-            ),
-            dpi=160,
-        )
-
-        figure.patch.set_facecolor(
-            self.COLOR_BACKGROUND
-        )
-
-        axes.set_facecolor(
-            self.COLOR_BACKGROUND
-        )
-
-        positions = list(
-            range(
-                len(rows)
-            )
-        )
-
-        axes.barh(
-            positions,
-            deviations,
-            color=self.COLOR_BLUE,
-            height=0.52,
-        )
-
-        axes.axvline(
-            0,
-            color=self.COLOR_NOMINAL,
-            linewidth=1.2,
-            linestyle="--",
-        )
-
-        axes.set_yticks(
-            positions
-        )
-
-        axes.set_yticklabels(
-            labels,
-            fontsize=8,
-        )
-
-        axes.invert_yaxis()
-
-        axis_label = (
-            f"Desvio da média em relação ao nominal ({unit})"
-            if unit
-            else "Desvio da média em relação ao nominal"
-        )
-
-        axes.set_xlabel(
-            axis_label,
-            fontsize=8.3,
-        )
-
-        axes.set_title(
-            "Desvio médio por característica",
-            fontsize=11,
-            fontweight="bold",
-            color=self.COLOR_NAVY,
-            pad=10,
-        )
-
-        axes.grid(
-            axis="x",
-            color=self.COLOR_GRID,
-            linewidth=0.6,
-            alpha=0.75,
-        )
-
-        axes.set_axisbelow(
-            True
-        )
-
-        self._clean_axes(
-            axes
-        )
-
-        for y, value in zip(
-            positions,
-            deviations,
-        ):
-            offset = (
-                4
-                if value >= 0
-                else -4
-            )
-
-            alignment = (
-                "left"
-                if value >= 0
-                else "right"
-            )
-
-            axes.annotate(
-                self._format_number(
-                    value
-                ),
-                xy=(
-                    value,
-                    y,
-                ),
-                xytext=(
-                    offset,
-                    0,
-                ),
-                textcoords="offset points",
-                ha=alignment,
-                va="center",
-                fontsize=7.5,
-                color=self.COLOR_NOMINAL,
-            )
-
-        figure.tight_layout(
-            pad=1.0
-        )
-
-        figure.savefig(
-            output_path,
-            bbox_inches="tight",
-            facecolor=self.COLOR_BACKGROUND,
-        )
-
-        plt.close(
-            figure
-        )
-
-        return output_path
 
     def _generate_conformity_summary_chart(
         self,
@@ -1221,25 +632,46 @@ class ReportChartService:
         output_path: Path,
     ) -> Path:
         labels = [
-            self._short_label(
+            self._wrap_label(
                 group.display_name,
-                maximum_length=30,
+                width=24,
             )
             for group in groups
         ]
 
         ok_values = [
-            group.ok_count
+            int(
+                getattr(
+                    group,
+                    "ok_count",
+                    0,
+                )
+                or 0
+            )
             for group in groups
         ]
 
         nok_values = [
-            group.nok_count
+            int(
+                getattr(
+                    group,
+                    "nok_count",
+                    0,
+                )
+                or 0
+            )
             for group in groups
         ]
 
         unknown_values = [
-            group.unknown_count
+            int(
+                getattr(
+                    group,
+                    "unknown_count",
+                    0,
+                )
+                or 0
+            )
             for group in groups
         ]
 
@@ -1360,16 +792,241 @@ class ReportChartService:
 
         return output_path
 
-    def _first_numeric_value(
+    # =============================================================
+    # DESVIO MÉDIO
+    # =============================================================
+
+    def _generate_batch_mean_deviation_chart(
+        self,
+        *,
+        groups: list[
+            StatisticalCharacteristic
+        ],
+        output_path: Path,
+    ) -> Optional[Path]:
+        rows: list[
+            tuple[str, float, str, str]
+        ] = []
+
+        for group in groups:
+            try:
+                mean_value = float(
+                    group.mean
+                )
+                nominal_value = float(
+                    group.nominal_value
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+                continue
+
+            unit = self._normalize_unit_for_chart(
+                getattr(
+                    group,
+                    "unit",
+                    None,
+                )
+            )
+
+            rows.append(
+                (
+                    self._wrap_label(
+                        group.display_name,
+                        width=24,
+                    ),
+
+                    mean_value
+                    - nominal_value,
+
+                    unit,
+
+                    self._group_status(
+                        group
+                    ),
+                )
+            )
+
+        if len(rows) < 2:
+            return None
+
+        labels = [
+            label
+            for label, _, _, _
+            in rows
+        ]
+
+        deviations = [
+            deviation
+            for _, deviation, _, _
+            in rows
+        ]
+
+        colors = [
+            (
+                self.COLOR_NOK
+                if status == "NOK"
+                else (
+                    self.COLOR_OK
+                    if status == "OK"
+                    else self.COLOR_BLUE
+                )
+            )
+            for _, _, _, status
+            in rows
+        ]
+
+        unit = rows[0][2]
+
+        figure_height = max(
+            3.2,
+            len(rows) * 0.44 + 1.35,
+        )
+
+        figure, axes = plt.subplots(
+            figsize=(
+                8.4,
+                figure_height,
+            ),
+            dpi=160,
+        )
+
+        positions = list(
+            range(
+                len(rows)
+            )
+        )
+
+        axes.barh(
+            positions,
+            deviations,
+            color=colors,
+            height=0.52,
+        )
+
+        axes.axvline(
+            0,
+            color=self.COLOR_NOMINAL,
+            linewidth=1.2,
+            linestyle="--",
+        )
+
+        axes.set_yticks(
+            positions
+        )
+
+        axes.set_yticklabels(
+            labels,
+            fontsize=8,
+        )
+
+        axes.invert_yaxis()
+
+        axis_label = (
+            f"Desvio da média em relação ao nominal ({unit})"
+            if unit
+            else "Desvio da média em relação ao nominal"
+        )
+
+        axes.set_xlabel(
+            axis_label,
+            fontsize=8.3,
+        )
+
+        axes.set_title(
+            "Desvio médio por característica",
+            fontsize=11,
+            fontweight="bold",
+            color=self.COLOR_NAVY,
+            pad=10,
+        )
+
+        axes.grid(
+            axis="x",
+            color=self.COLOR_GRID,
+            linewidth=0.6,
+            alpha=0.75,
+        )
+
+        axes.set_axisbelow(
+            True
+        )
+
+        self._clean_axes(
+            axes
+        )
+
+        for y, value in zip(
+            positions,
+            deviations,
+        ):
+            axes.annotate(
+                self._format_number(
+                    value
+                ),
+                xy=(
+                    value,
+                    y,
+                ),
+                xytext=(
+                    4
+                    if value >= 0
+                    else -4,
+                    0,
+                ),
+                textcoords="offset points",
+                ha=(
+                    "left"
+                    if value >= 0
+                    else "right"
+                ),
+                va="center",
+                fontsize=7.4,
+                color=self.COLOR_NOMINAL,
+            )
+
+        figure.tight_layout(
+            pad=1.0
+        )
+
+        figure.savefig(
+            output_path,
+            bbox_inches="tight",
+            facecolor=self.COLOR_BACKGROUND,
+        )
+
+        plt.close(
+            figure
+        )
+
+        return output_path
+
+    # =============================================================
+    # TENDÊNCIA POR CARACTERÍSTICA
+    # =============================================================
+
+    def generate_characteristic_chart(
         self,
         group: StatisticalCharacteristic,
-    ) -> Optional[float]:
-        for measurement in group.measurements:
-            if measurement.measured_value is None:
+        output_path: str | Path,
+    ) -> Optional[Path]:
+        values: list[float] = []
+        labels: list[str] = []
+        statuses: list[str] = []
+
+        for measurement in (
+            group.measurements
+        ):
+            if (
+                measurement.measured_value
+                is None
+            ):
                 continue
 
             try:
-                return float(
+                measured_value = float(
                     measurement.measured_value
                 )
 
@@ -1379,83 +1036,24 @@ class ReportChartService:
             ):
                 continue
 
-        return None
-
-    def _first_measurement_status(
-        self,
-        group: StatisticalCharacteristic,
-    ) -> str:
-        for measurement in group.measurements:
-            if measurement.measured_value is None:
-                continue
-
-            return str(
-                measurement.status
-                or ""
-            ).upper()
-
-        return ""
-
-    def _clean_axes(
-        self,
-        axes,
-    ) -> None:
-        axes.spines[
-            "top"
-        ].set_visible(
-            False
-        )
-
-        axes.spines[
-            "right"
-        ].set_visible(
-            False
-        )
-
-        axes.spines[
-            "left"
-        ].set_color(
-            self.COLOR_GRID
-        )
-
-        axes.spines[
-            "bottom"
-        ].set_color(
-            self.COLOR_GRID
-        )
-
-    # =============================================================
-    # GRÁFICO INDIVIDUAL
-    # =============================================================
-
-    def generate_characteristic_chart(
-        self,
-        group: StatisticalCharacteristic,
-        output_path: str | Path,
-    ) -> Optional[Path]:
-        values = []
-        labels = []
-        statuses = []
-
-        for measurement in group.measurements:
-            if measurement.measured_value is None:
-                continue
-
             labels.append(
-                measurement.unit_identifier
-            )
-
-            values.append(
-                float(
-                    measurement.measured_value
+                str(
+                    measurement.unit_identifier
                 )
             )
 
-            statuses.append(
-                measurement.status
+            values.append(
+                measured_value
             )
 
-        if not values:
+            statuses.append(
+                str(
+                    measurement.status
+                    or ""
+                ).upper()
+            )
+
+        if len(values) < 2:
             return None
 
         destination = Path(
@@ -1473,9 +1071,7 @@ class ReportChartService:
         x_values = list(
             range(
                 1,
-                len(
-                    values
-                ) + 1
+                len(values) + 1,
             )
         )
 
@@ -1492,17 +1088,14 @@ class ReportChartService:
             for status in statuses
         ]
 
-        if len(
-            values
-        ) >= 2:
-            axes.plot(
-                x_values,
-                values,
-                linewidth=1.4,
-                color=self.COLOR_BLUE,
-                alpha=0.72,
-                zorder=2,
-            )
+        axes.plot(
+            x_values,
+            values,
+            linewidth=1.4,
+            color=self.COLOR_BLUE,
+            alpha=0.72,
+            zorder=2,
+        )
 
         axes.scatter(
             x_values,
@@ -1514,9 +1107,14 @@ class ReportChartService:
             zorder=3,
         )
 
-        if group.nominal_value is not None:
+        if (
+            group.nominal_value
+            is not None
+        ):
             axes.axhline(
-                group.nominal_value,
+                float(
+                    group.nominal_value
+                ),
                 color=self.COLOR_NOMINAL,
                 linewidth=1.2,
                 linestyle="--",
@@ -1526,9 +1124,14 @@ class ReportChartService:
                 ),
             )
 
-        if group.lower_limit is not None:
+        if (
+            group.lower_limit
+            is not None
+        ):
             axes.axhline(
-                group.lower_limit,
+                float(
+                    group.lower_limit
+                ),
                 color=self.COLOR_LIMIT,
                 linewidth=1.1,
                 linestyle=":",
@@ -1538,9 +1141,14 @@ class ReportChartService:
                 ),
             )
 
-        if group.upper_limit is not None:
+        if (
+            group.upper_limit
+            is not None
+        ):
             axes.axhline(
-                group.upper_limit,
+                float(
+                    group.upper_limit
+                ),
                 color=self.COLOR_LIMIT,
                 linewidth=1.1,
                 linestyle=":",
@@ -1559,23 +1167,23 @@ class ReportChartService:
             fontsize=8,
             rotation=(
                 35
-                if len(
-                    labels
-                ) > 7
+                if len(labels) > 7
                 else 0
             ),
             ha=(
                 "right"
-                if len(
-                    labels
-                ) > 7
+                if len(labels) > 7
                 else "center"
             ),
         )
 
         y_label = (
             f"Valor medido ({group.unit})"
-            if group.unit
+            if getattr(
+                group,
+                "unit",
+                None,
+            )
             else "Valor medido"
         )
 
@@ -1585,27 +1193,12 @@ class ReportChartService:
         )
 
         axes.set_xlabel(
-            (
-                "Unidades do lote"
-                if group.is_batch_characteristic
-                else "Medição"
-            ),
+            "Unidades do lote",
             fontsize=8.5,
         )
 
-        title_parts = [
-            group.display_name
-        ]
-
-        if group.group_name:
-            title_parts.append(
-                group.group_name
-            )
-
         axes.set_title(
-            " · ".join(
-                title_parts
-            ),
+            "Comportamento dos valores medidos",
             fontsize=11,
             fontweight="bold",
             color=self.COLOR_NAVY,
@@ -1623,38 +1216,18 @@ class ReportChartService:
             True
         )
 
-        axes.spines[
-            "top"
-        ].set_visible(
-            False
+        self._clean_axes(
+            axes
         )
 
-        axes.spines[
-            "right"
-        ].set_visible(
-            False
-        )
-
-        axes.spines[
-            "left"
-        ].set_color(
-            self.COLOR_GRID
-        )
-
-        axes.spines[
-            "bottom"
-        ].set_color(
-            self.COLOR_GRID
-        )
-
-        handles, legend_labels = (
+        handles, labels_legend = (
             axes.get_legend_handles_labels()
         )
 
         if handles:
             axes.legend(
                 handles,
-                legend_labels,
+                labels_legend,
                 loc="upper center",
                 bbox_to_anchor=(
                     0.5,
@@ -1662,16 +1235,16 @@ class ReportChartService:
                 ),
                 ncol=min(
                     3,
-                    len(
-                        handles
-                    ),
+                    len(handles),
                 ),
                 frameon=False,
                 fontsize=7.5,
             )
 
-        statistics_text = self._statistics_text(
-            group
+        statistics_text = (
+            self._statistics_text(
+                group
+            )
         )
 
         axes.text(
@@ -1716,18 +1289,283 @@ class ReportChartService:
     # HELPERS
     # =============================================================
 
+    def _append_generated(
+        self,
+        files: list[Path],
+        path: Optional[Path],
+    ) -> None:
+        if (
+            path is not None
+            and path.exists()
+        ):
+            files.append(
+                path
+            )
+
+    def _relative_amplitude(
+        self,
+        group: StatisticalCharacteristic,
+    ) -> float:
+        amplitude = getattr(
+            group,
+            "amplitude",
+            None,
+        )
+
+        if amplitude is None:
+            return 0.0
+
+        references = [
+            abs(
+                float(
+                    group.nominal_value
+                )
+            )
+            if getattr(
+                group,
+                "nominal_value",
+                None,
+            )
+            is not None
+            else 0.0,
+
+            abs(
+                float(
+                    group.mean
+                )
+            )
+            if getattr(
+                group,
+                "mean",
+                None,
+            )
+            is not None
+            else 0.0,
+
+            1.0,
+        ]
+
+        return (
+            abs(
+                float(
+                    amplitude
+                )
+            )
+            / max(
+                references
+            )
+        )
+
+    def _group_status(
+        self,
+        group: StatisticalCharacteristic,
+    ) -> str:
+        if int(
+            getattr(
+                group,
+                "nok_count",
+                0,
+            )
+            or 0
+        ) > 0:
+            return "NOK"
+
+        if int(
+            getattr(
+                group,
+                "ok_count",
+                0,
+            )
+            or 0
+        ) > 0:
+            return "OK"
+
+        return "UNKNOWN"
+
+    def _chart_identity(
+        self,
+        group: StatisticalCharacteristic,
+    ) -> str:
+        return "|".join(
+            [
+                self._display_label(
+                    getattr(
+                        group,
+                        "display_name",
+                        "",
+                    )
+                ).upper(),
+
+                str(
+                    getattr(
+                        group,
+                        "nominal_value",
+                        "",
+                    )
+                ),
+
+                str(
+                    getattr(
+                        group,
+                        "lower_tolerance",
+                        "",
+                    )
+                ),
+
+                str(
+                    getattr(
+                        group,
+                        "upper_tolerance",
+                        "",
+                    )
+                ),
+
+                self._normalize_unit_for_chart(
+                    getattr(
+                        group,
+                        "unit",
+                        None,
+                    )
+                ),
+            ]
+        )
+
+    def _normalize_unit_for_chart(
+        self,
+        value: Any,
+    ) -> str:
+        normalized = (
+            unicodedata.normalize(
+                "NFKD",
+                str(
+                    value or ""
+                ),
+            )
+        )
+
+        normalized = "".join(
+            character
+            for character in normalized
+            if not unicodedata.combining(
+                character
+            )
+        )
+
+        normalized = (
+            normalized
+            .strip()
+            .lower()
+            .replace(" ", "")
+        )
+
+        aliases = {
+            "millimeter":
+                "mm",
+
+            "millimeters":
+                "mm",
+
+            "millimetre":
+                "mm",
+
+            "millimetres":
+                "mm",
+
+            "inch":
+                "in",
+
+            "inches":
+                "in",
+
+            "\"":
+                "in",
+
+            "micrometer":
+                "um",
+
+            "micrometre":
+                "um",
+
+            "µm":
+                "um",
+
+            "μm":
+                "um",
+
+            "degree":
+                "°",
+
+            "degrees":
+                "°",
+
+            "deg":
+                "°",
+        }
+
+        return aliases.get(
+            normalized,
+            normalized,
+        )
+
+    def _trend_description(
+        self,
+        group: StatisticalCharacteristic,
+    ) -> str:
+        count = int(
+            getattr(
+                group,
+                "valid_numeric_count",
+                0,
+            )
+            or 0
+        )
+
+        nok = int(
+            getattr(
+                group,
+                "nok_count",
+                0,
+            )
+            or 0
+        )
+
+        if nok > 0:
+            return (
+                f"{count} valor(es) numérico(s) avaliados; "
+                f"{nok} ocorrência(s) fora da tolerância."
+            )
+
+        return (
+            f"{count} valor(es) numérico(s) avaliados ao longo do lote."
+        )
+
+    def _display_label(
+        self,
+        value: Any,
+    ) -> str:
+        return " ".join(
+            str(
+                value
+                or "Característica"
+            ).split()
+        )
+
     def _statistics_text(
         self,
         group: StatisticalCharacteristic,
     ) -> str:
         parts = [
             (
-                f"n = "
-                f"{group.valid_numeric_count}"
+                "n = "
+                f"{int(getattr(group, 'valid_numeric_count', 0) or 0)}"
             )
         ]
 
-        if group.mean is not None:
+        if getattr(
+            group,
+            "mean",
+            None,
+        ) is not None:
             parts.append(
                 (
                     "média = "
@@ -1735,7 +1573,11 @@ class ReportChartService:
                 )
             )
 
-        if group.minimum is not None:
+        if getattr(
+            group,
+            "minimum",
+            None,
+        ) is not None:
             parts.append(
                 (
                     "mín. = "
@@ -1743,7 +1585,11 @@ class ReportChartService:
                 )
             )
 
-        if group.maximum is not None:
+        if getattr(
+            group,
+            "maximum",
+            None,
+        ) is not None:
             parts.append(
                 (
                     "máx. = "
@@ -1751,7 +1597,11 @@ class ReportChartService:
                 )
             )
 
-        if group.standard_deviation is not None:
+        if getattr(
+            group,
+            "standard_deviation",
+            None,
+        ) is not None:
             parts.append(
                 (
                     "desvio padrão = "
@@ -1765,10 +1615,10 @@ class ReportChartService:
 
     def _format_number(
         self,
-        value,
+        value: Any,
     ) -> str:
         if value is None:
-            return "-"
+            return "—"
 
         try:
             number = float(
@@ -1783,7 +1633,13 @@ class ReportChartService:
                 value
             )
 
-        return f"{number:.4f}"
+        return (
+            f"{number:.4f}"
+            .replace(
+                ".",
+                ",",
+            )
+        )
 
     def _autopct(
         self,
@@ -1792,42 +1648,43 @@ class ReportChartService:
         if percentage < 4.0:
             return ""
 
-        return f"{percentage:.1f}%"
-
-    def _short_label(
-        self,
-        value: str,
-        maximum_length: int,
-    ) -> str:
-        clean = " ".join(
-            str(
-                value
-                or "Característica"
-            ).split()
+        return (
+            f"{percentage:.1f}%"
         )
 
-        if len(
-            clean
-        ) <= maximum_length:
-            return clean
+    def _wrap_label(
+        self,
+        value: Any,
+        width: int = 24,
+    ) -> str:
+        clean = self._display_label(
+            value
+        )
 
-        return (
-            clean[
-                :maximum_length - 1
-            ]
-            + "…"
+        return "\n".join(
+            textwrap.wrap(
+                clean,
+                width=max(
+                    10,
+                    width,
+                ),
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
         )
 
     def _safe_file_name(
         self,
-        value: str,
+        value: Any,
     ) -> str:
-        normalized = unicodedata.normalize(
-            "NFKD",
-            str(
-                value
-                or "caracteristica"
-            ),
+        normalized = (
+            unicodedata.normalize(
+                "NFKD",
+                str(
+                    value
+                    or "caracteristica"
+                ),
+            )
         )
 
         normalized = "".join(
@@ -1838,7 +1695,9 @@ class ReportChartService:
             )
         )
 
-        normalized = normalized.lower()
+        normalized = (
+            normalized.lower()
+        )
 
         normalized = re.sub(
             r"[^a-z0-9]+",
@@ -1849,8 +1708,34 @@ class ReportChartService:
         )
 
         return (
-            normalized[
-                :55
-            ]
+            normalized[:55]
             or "caracteristica"
+        )
+
+    def _clean_axes(
+        self,
+        axes,
+    ) -> None:
+        axes.spines[
+            "top"
+        ].set_visible(
+            False
+        )
+
+        axes.spines[
+            "right"
+        ].set_visible(
+            False
+        )
+
+        axes.spines[
+            "left"
+        ].set_color(
+            self.COLOR_GRID
+        )
+
+        axes.spines[
+            "bottom"
+        ].set_color(
+            self.COLOR_GRID
         )

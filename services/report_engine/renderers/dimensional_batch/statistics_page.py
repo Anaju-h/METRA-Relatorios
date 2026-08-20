@@ -4,23 +4,19 @@ from typing import Any
 
 import fitz
 
-from services.report_engine.layout_engine import (
-    ReportLayoutEngine,
-)
-from services.report_engine.report_context import (
-    ReportRenderContext,
-)
+from services.report_engine.layout_engine import ReportLayoutEngine
+from services.report_engine.report_context import ReportRenderContext
 
 
 class DimensionalBatchStatisticsPage:
     """
-    Resumo estatístico consolidado do relatório dimensional em lote.
+    Resultados estatísticos por característica.
 
-    O conteúdo é voltado ao cliente:
-    - indicadores internos de ausência de avaliação não são exibidos;
-    - Cp/Cpk aparecem somente quando disponíveis;
-    - status indeterminado é apresentado de forma neutra;
-    - tabelas quebram automaticamente entre páginas.
+    O resumo executivo já aparece na abertura do relatório; esta seção
+    apresenta apenas a análise estatística detalhada.
+
+    O valor de "n" representa a quantidade de valores numéricos válidos
+    realmente utilizados nos cálculos estatísticos da característica.
     """
 
     COLOR_NAVY = (0.025, 0.110, 0.215)
@@ -28,16 +24,16 @@ class DimensionalBatchStatisticsPage:
     COLOR_MUTED = (0.360, 0.410, 0.470)
     COLOR_BORDER = (0.790, 0.825, 0.860)
     COLOR_SURFACE = (0.975, 0.982, 0.988)
-    COLOR_LIGHT_BLUE = (0.925, 0.960, 0.987)
 
     COLOR_OK = (0.080, 0.500, 0.275)
     COLOR_OK_BG = (0.910, 0.975, 0.935)
+
     COLOR_NOK = (0.760, 0.160, 0.120)
     COLOR_NOK_BG = (0.995, 0.920, 0.905)
 
     SECTION_TITLE_HEIGHT = 28.0
-    TABLE_HEADER_HEIGHT = 28.0
-    TABLE_ROW_HEIGHT = 31.0
+    TABLE_HEADER_HEIGHT = 30.0
+    BASE_ROW_HEIGHT = 31.0
     GAP = 10.0
 
     def render(
@@ -46,216 +42,28 @@ class DimensionalBatchStatisticsPage:
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
     ) -> None:
-        groups = (
-            render_context.statistical_groups
-        )
+        groups = render_context.statistical_groups
 
         if not groups:
             return
 
-        self._draw_overview(
-            layout=layout,
-            render_context=render_context,
+        show_capability = self._has_capability_indices(
+            groups
         )
 
-        self._draw_statistics_table(
-            layout=layout,
-            groups=groups,
-        )
-
-    # =============================================================
-    # VISÃO GERAL
-    # =============================================================
-
-    def _draw_overview(
-        self,
-        *,
-        layout: ReportLayoutEngine,
-        render_context: ReportRenderContext,
-    ) -> None:
-        summary = (
-            render_context.overall_statistics
-        )
-
-        evaluated_count = int(
-            summary.get(
-                "evaluated_count",
-                0,
-            )
-            or 0
-        )
-
-        page = layout.ensure_space(
-            106.0,
-            repeated_title="RESUMO ESTATÍSTICO",
-        )
-
-        self._draw_section_title(
-            page=page,
-            layout=layout,
-            title="3. RESUMO ESTATÍSTICO CONSOLIDADO",
-        )
-
-        layout.advance(
-            self.SECTION_TITLE_HEIGHT
-        )
-
-        base_values = [
-            (
-                "Características",
-                summary.get(
-                    "group_count",
-                    0,
-                ),
-                "grupos analisados",
-                self.COLOR_LIGHT_BLUE,
-                self.COLOR_NAVY,
-            ),
-            (
-                "Resultados",
-                summary.get(
-                    "measurement_count",
-                    0,
-                ),
-                "medições",
-                self.COLOR_LIGHT_BLUE,
-                self.COLOR_NAVY,
-            ),
-        ]
-
-        if evaluated_count > 0:
-            values = base_values + [
-                (
-                    "Conformes",
-                    summary.get(
-                        "ok_count",
-                        0,
-                    ),
-                    "resultados",
-                    self.COLOR_OK_BG,
-                    self.COLOR_OK,
-                ),
-                (
-                    "Não conformes",
-                    summary.get(
-                        "nok_count",
-                        0,
-                    ),
-                    "resultados",
-                    self.COLOR_NOK_BG,
-                    self.COLOR_NOK,
-                ),
-            ]
-        else:
-            values = base_values
-
-        gap = 7.0
-
-        card_width = (
-            layout.geometry.content_width
-            - gap * (
-                len(values) - 1
-            )
-        ) / len(values)
-
-        card_height = 68.0
-
-        for index, (
-            label,
-            value,
-            helper,
-            background,
-            accent,
-        ) in enumerate(values):
-            x = (
-                layout.geometry.margin_left
-                + index * (
-                    card_width + gap
-                )
-            )
-
-            rect = fitz.Rect(
-                x,
-                layout.cursor_y,
-                x + card_width,
-                layout.cursor_y + card_height,
-            )
-
-            page.draw_rect(
-                rect,
-                color=self.COLOR_BORDER,
-                fill=background,
-                width=0.5,
-            )
-
-            page.insert_textbox(
-                fitz.Rect(
-                    rect.x0 + 4,
-                    rect.y0 + 6,
-                    rect.x1 - 4,
-                    rect.y0 + 19,
-                ),
-                label,
-                fontsize=5.5,
-                fontname="hebo",
-                color=self.COLOR_MUTED,
-                align=fitz.TEXT_ALIGN_CENTER,
-            )
-
-            page.insert_textbox(
-                fitz.Rect(
-                    rect.x0 + 4,
-                    rect.y0 + 24,
-                    rect.x1 - 4,
-                    rect.y0 + 44,
-                ),
-                str(
-                    value
-                ),
-                fontsize=11.0,
-                fontname="hebo",
-                color=accent,
-                align=fitz.TEXT_ALIGN_CENTER,
-            )
-
-            page.insert_textbox(
-                fitz.Rect(
-                    rect.x0 + 4,
-                    rect.y0 + 47,
-                    rect.x1 - 4,
-                    rect.y1 - 5,
-                ),
-                helper,
-                fontsize=5.1,
-                fontname="helv",
-                color=accent,
-                align=fitz.TEXT_ALIGN_CENTER,
-            )
-
-        layout.advance(
-            card_height + self.GAP
-        )
-
-    # =============================================================
-    # TABELA
-    # =============================================================
-
-    def _draw_statistics_table(
-        self,
-        *,
-        layout: ReportLayoutEngine,
-        groups: list[Any],
-    ) -> None:
         self._draw_table_header(
             layout=layout,
+            show_capability=show_capability,
         )
 
-        for index, group in enumerate(
-            groups
-        ):
+        for index, group in enumerate(groups):
+            row_height = self._row_height(
+                group
+            )
+
             page = layout.ensure_space(
-                self.TABLE_ROW_HEIGHT,
-                repeated_title="RESUMO ESTATÍSTICO",
+                row_height,
+                repeated_title="RESULTADOS ESTATÍSTICOS",
             )
 
             if (
@@ -264,6 +72,7 @@ class DimensionalBatchStatisticsPage:
             ):
                 self._draw_table_header(
                     layout=layout,
+                    show_capability=show_capability,
                 )
                 page = layout.current_page
 
@@ -271,71 +80,70 @@ class DimensionalBatchStatisticsPage:
                 page=page,
                 layout=layout,
                 group=group,
-                alternate=(
-                    index % 2 == 0
-                ),
+                alternate=index % 2 == 0,
+                show_capability=show_capability,
+                row_height=row_height,
             )
 
             layout.advance(
-                self.TABLE_ROW_HEIGHT
+                row_height
             )
 
         layout.advance(
             self.GAP
         )
 
+    # =============================================================
+    # CABEÇALHO
+    # =============================================================
+
     def _draw_table_header(
         self,
         *,
         layout: ReportLayoutEngine,
+        show_capability: bool,
     ) -> None:
-        required = (
-            self.SECTION_TITLE_HEIGHT
-            + self.TABLE_HEADER_HEIGHT
-        )
-
         page = layout.ensure_space(
-            required,
-            repeated_title="RESUMO ESTATÍSTICO",
+            self.SECTION_TITLE_HEIGHT
+            + self.TABLE_HEADER_HEIGHT,
+            repeated_title="RESULTADOS ESTATÍSTICOS",
         )
 
         self._draw_section_title(
             page=page,
             layout=layout,
-            title="4. ESTATÍSTICA POR CARACTERÍSTICA",
         )
 
         layout.advance(
             self.SECTION_TITLE_HEIGHT
         )
 
-        headers = [
-            "Característica",
-            "n",
-            "Nominal",
-            "Mín.",
-            "Máx.",
-            "Média",
-            "Amplitude",
-            "Desv. padrão",
-            "Cp",
-            "Cpk",
-            "Status",
-        ]
-
-        columns = self._columns(
-            layout.geometry.content_width
+        headers = self._headers(
+            show_capability
         )
 
-        for header, rect in zip(
-            headers,
-            columns,
+        columns = self._columns(
+            layout.geometry.content_width,
+            show_capability,
+        )
+
+        for index, (
+            header,
+            rect,
+        ) in enumerate(
+            zip(
+                headers,
+                columns,
+            )
         ):
             cell = fitz.Rect(
-                layout.geometry.margin_left + rect.x0,
+                layout.geometry.margin_left
+                + rect.x0,
                 layout.cursor_y,
-                layout.geometry.margin_left + rect.x1,
-                layout.cursor_y + self.TABLE_HEADER_HEIGHT,
+                layout.geometry.margin_left
+                + rect.x1,
+                layout.cursor_y
+                + self.TABLE_HEADER_HEIGHT,
             )
 
             page.draw_rect(
@@ -353,19 +161,24 @@ class DimensionalBatchStatisticsPage:
                     cell.y1 - 4,
                 ),
                 header,
-                fontsize=4.8,
+                fontsize=4.9,
                 fontname="hebo",
                 color=(1, 1, 1),
                 align=(
                     fitz.TEXT_ALIGN_LEFT
-                    if header == "Característica"
+                    if index == 0
                     else fitz.TEXT_ALIGN_CENTER
                 ),
+                lineheight=1.02,
             )
 
         layout.advance(
             self.TABLE_HEADER_HEIGHT
         )
+
+    # =============================================================
+    # LINHAS
+    # =============================================================
 
     def _draw_table_row(
         self,
@@ -374,7 +187,105 @@ class DimensionalBatchStatisticsPage:
         layout: ReportLayoutEngine,
         group: Any,
         alternate: bool,
+        show_capability: bool,
+        row_height: float,
     ) -> None:
+        values = self._row_values(
+            group,
+            show_capability,
+        )
+
+        columns = self._columns(
+            layout.geometry.content_width,
+            show_capability,
+        )
+
+        base_fill = (
+            self.COLOR_SURFACE
+            if alternate
+            else (1, 1, 1)
+        )
+
+        status_column = (
+            len(values) - 1
+        )
+
+        for index, (
+            value,
+            rect,
+        ) in enumerate(
+            zip(
+                values,
+                columns,
+            )
+        ):
+            cell = fitz.Rect(
+                layout.geometry.margin_left
+                + rect.x0,
+                layout.cursor_y,
+                layout.geometry.margin_left
+                + rect.x1,
+                layout.cursor_y
+                + row_height,
+            )
+
+            fill = base_fill
+            color = self.COLOR_TEXT
+            font = "helv"
+
+            if index == status_column:
+                status = self._status_code(
+                    group
+                )
+
+                font = "hebo"
+
+                if status == "OK":
+                    fill = self.COLOR_OK_BG
+                    color = self.COLOR_OK
+
+                elif status == "NOK":
+                    fill = self.COLOR_NOK_BG
+                    color = self.COLOR_NOK
+
+                else:
+                    color = self.COLOR_MUTED
+
+            page.draw_rect(
+                cell,
+                color=self.COLOR_BORDER,
+                fill=fill,
+                width=0.3,
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    cell.x0 + 3,
+                    cell.y0 + 7,
+                    cell.x1 - 3,
+                    cell.y1 - 4,
+                ),
+                value,
+                fontsize=(
+                    5.0
+                    if index == 0
+                    else 4.9
+                ),
+                fontname=font,
+                color=color,
+                align=(
+                    fitz.TEXT_ALIGN_LEFT
+                    if index == 0
+                    else fitz.TEXT_ALIGN_CENTER
+                ),
+                lineheight=1.05,
+            )
+
+    def _row_values(
+        self,
+        group: Any,
+        show_capability: bool,
+    ) -> list[str]:
         values = [
             self._clean_text(
                 getattr(
@@ -385,12 +296,9 @@ class DimensionalBatchStatisticsPage:
                 fallback="Característica",
             ),
             str(
-                getattr(
-                    group,
-                    "measurement_count",
-                    0,
+                self._numeric_count(
+                    group
                 )
-                or 0
             ),
             self._format_number(
                 getattr(
@@ -421,134 +329,163 @@ class DimensionalBatchStatisticsPage:
                 )
             ),
             self._format_number(
-                getattr(
-                    group,
-                    "amplitude",
-                    None,
-                )
-            ),
-            self._format_number(
                 self._std_dev(
                     group
                 )
             ),
-            self._format_index(
-                getattr(
-                    group,
-                    "cp",
-                    None,
-                )
-            ),
-            self._format_index(
-                getattr(
-                    group,
-                    "cpk",
-                    None,
-                )
-            ),
-            self._status_label(
-                group
-            ),
         ]
 
-        columns = self._columns(
-            layout.geometry.content_width
-        )
-
-        base_fill = (
-            self.COLOR_SURFACE
-            if alternate
-            else (1, 1, 1)
-        )
-
-        for index, (
-            value,
-            rect,
-        ) in enumerate(
-            zip(
-                values,
-                columns,
-            )
-        ):
-            cell = fitz.Rect(
-                layout.geometry.margin_left + rect.x0,
-                layout.cursor_y,
-                layout.geometry.margin_left + rect.x1,
-                layout.cursor_y + self.TABLE_ROW_HEIGHT,
+        if show_capability:
+            values.extend(
+                [
+                    self._format_index(
+                        getattr(
+                            group,
+                            "cp",
+                            None,
+                        )
+                    ),
+                    self._format_index(
+                        getattr(
+                            group,
+                            "cpk",
+                            None,
+                        )
+                    ),
+                ]
             )
 
-            fill = base_fill
-            color = self.COLOR_TEXT
-            font = "helv"
+        values.append(
+            self._status_label(
+                group
+            )
+        )
 
-            if index == 10:
-                status = self._status_code(
-                    group
+        return values
+
+    def _numeric_count(
+        self,
+        group: Any,
+    ) -> int:
+        """
+        O ReportStatisticsService preenche valid_numeric_count.
+        measurement_count não faz parte do modelo estatístico do grupo.
+        """
+        valid_numeric_count = getattr(
+            group,
+            "valid_numeric_count",
+            None,
+        )
+
+        if valid_numeric_count is not None:
+            try:
+                return int(
+                    valid_numeric_count
+                    or 0
                 )
-                font = "hebo"
+            except (
+                TypeError,
+                ValueError,
+            ):
+                pass
 
-                if status == "OK":
-                    fill = self.COLOR_OK_BG
-                    color = self.COLOR_OK
-                elif status == "NOK":
-                    fill = self.COLOR_NOK_BG
-                    color = self.COLOR_NOK
-                else:
-                    fill = base_fill
-                    color = self.COLOR_MUTED
-
-            page.draw_rect(
-                cell,
-                color=self.COLOR_BORDER,
-                fill=fill,
-                width=0.3,
+        measurements = (
+            getattr(
+                group,
+                "measurements",
+                [],
             )
+            or []
+        )
 
-            page.insert_textbox(
-                fitz.Rect(
-                    cell.x0 + 3,
-                    cell.y0 + 8,
-                    cell.x1 - 3,
-                    cell.y1 - 4,
-                ),
-                value,
-                fontsize=4.9,
-                fontname=font,
-                color=color,
-                align=(
-                    fitz.TEXT_ALIGN_LEFT
-                    if index == 0
-                    else fitz.TEXT_ALIGN_CENTER
-                ),
+        return sum(
+            1
+            for measurement in measurements
+            if getattr(
+                measurement,
+                "measured_value",
+                None,
             )
+            is not None
+        )
 
     # =============================================================
-    # COLUNAS
+    # ESTRUTURA DA TABELA
     # =============================================================
+
+    def _headers(
+        self,
+        show_capability: bool,
+    ) -> list[str]:
+        headers = [
+            "Característica",
+            "n",
+            "Nominal",
+            "Mín.",
+            "Máx.",
+            "Média",
+            "Desv. padrão",
+        ]
+
+        if show_capability:
+            headers.extend(
+                [
+                    "Cp",
+                    "Cpk",
+                ]
+            )
+
+        headers.append(
+            "Status"
+        )
+
+        return headers
 
     def _columns(
         self,
         content_width: float,
+        show_capability: bool,
     ) -> list[fitz.Rect]:
-        ratios = [
-            0.22,
-            0.05,
-            0.09,
-            0.08,
-            0.08,
-            0.09,
-            0.09,
-            0.10,
-            0.06,
-            0.06,
-            0.08,
-        ]
+        ratios = (
+            [
+                0.30,
+                0.06,
+                0.10,
+                0.10,
+                0.10,
+                0.10,
+                0.11,
+                0.06,
+                0.06,
+                0.11,
+            ]
+            if show_capability
+            else [
+                0.34,
+                0.07,
+                0.12,
+                0.11,
+                0.11,
+                0.12,
+                0.13,
+                0.10,
+            ]
+        )
+
+        total = sum(
+            ratios
+        )
 
         x = 0.0
-        columns = []
+        columns: list[fitz.Rect] = []
 
         for ratio in ratios:
-            width = content_width * ratio
+            width = (
+                content_width
+                * ratio
+                / total
+            )
+
             columns.append(
                 fitz.Rect(
                     x,
@@ -557,9 +494,60 @@ class DimensionalBatchStatisticsPage:
                     0,
                 )
             )
+
             x += width
 
         return columns
+
+    def _row_height(
+        self,
+        group: Any,
+    ) -> float:
+        name = self._clean_text(
+            getattr(
+                group,
+                "display_name",
+                None,
+            ),
+            fallback="Característica",
+        )
+
+        lines = max(
+            1,
+            (
+                len(name) + 35
+            )
+            // 36,
+        )
+
+        return min(
+            58.0,
+            max(
+                self.BASE_ROW_HEIGHT,
+                20.0
+                + lines * 9.0,
+            ),
+        )
+
+    def _has_capability_indices(
+        self,
+        groups: list[Any],
+    ) -> bool:
+        return any(
+            getattr(
+                group,
+                "cp",
+                None,
+            )
+            is not None
+            or getattr(
+                group,
+                "cpk",
+                None,
+            )
+            is not None
+            for group in groups
+        )
 
     # =============================================================
     # TÍTULO E STATUS
@@ -570,7 +558,6 @@ class DimensionalBatchStatisticsPage:
         *,
         page: fitz.Page,
         layout: ReportLayoutEngine,
-        title: str,
     ) -> None:
         rect = layout.full_width_rect(
             self.SECTION_TITLE_HEIGHT
@@ -590,7 +577,7 @@ class DimensionalBatchStatisticsPage:
                 rect.x1 - 9,
                 rect.y1 - 4,
             ),
-            title,
+            "4. RESULTADOS ESTATÍSTICOS POR CARACTERÍSTICA",
             fontsize=7.3,
             fontname="hebo",
             color=(1, 1, 1),
@@ -652,13 +639,14 @@ class DimensionalBatchStatisticsPage:
             None,
         )
 
-        if value is not None:
-            return value
-
-        return getattr(
-            group,
-            "std_dev",
-            None,
+        return (
+            value
+            if value is not None
+            else getattr(
+                group,
+                "std_dev",
+                None,
+            )
         )
 
     def _format_number(
@@ -669,9 +657,14 @@ class DimensionalBatchStatisticsPage:
             return "—"
 
         try:
-            number = float(
-                value
+            return (
+                f"{float(value):.4f}"
+                .replace(
+                    ".",
+                    ",",
+                )
             )
+
         except (
             TypeError,
             ValueError,
@@ -681,14 +674,6 @@ class DimensionalBatchStatisticsPage:
                 fallback="—",
             )
 
-        return (
-            f"{number:.4f}"
-            .replace(
-                ".",
-                ",",
-            )
-        )
-
     def _format_index(
         self,
         value: Any,
@@ -697,22 +682,19 @@ class DimensionalBatchStatisticsPage:
             return "—"
 
         try:
-            number = float(
-                value
+            return (
+                f"{float(value):.2f}"
+                .replace(
+                    ".",
+                    ",",
+                )
             )
+
         except (
             TypeError,
             ValueError,
         ):
             return "—"
-
-        return (
-            f"{number:.2f}"
-            .replace(
-                ".",
-                ",",
-            )
-        )
 
     def _clean_text(
         self,
@@ -726,4 +708,7 @@ class DimensionalBatchStatisticsPage:
             ).split()
         )
 
-        return cleaned or fallback
+        return (
+            cleaned
+            or fallback
+        )

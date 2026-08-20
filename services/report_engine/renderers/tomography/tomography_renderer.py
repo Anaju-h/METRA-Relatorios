@@ -25,27 +25,50 @@ class TomographyRenderer(BaseReportRenderer):
 
     def render_document(self) -> None:
         if self.layout is None:
-            raise RuntimeError("O motor de layout não foi inicializado.")
+            raise RuntimeError(
+                "O motor de layout não foi inicializado."
+            )
         if self.render_context is None:
-            raise RuntimeError("O contexto do relatório não foi definido.")
+            raise RuntimeError(
+                "O contexto do relatório não foi definido."
+            )
 
+        # 1. Identificação da inspeção
+        # 2. Parâmetros principais da aquisição
         self.cover_page.render(
             layout=self.layout,
             render_context=self.render_context,
         )
 
-        if self._analysis_enabled():
+        # 3. Evidências tomográficas
+        if (
+            self.section_enabled("images")
+            and self.render_context.get_report_images()
+        ):
             self.analysis_page.render(
                 layout=self.layout,
                 render_context=self.render_context,
             )
 
-        if self._findings_enabled():
+        # 4. Achados tomográficos
+        # 5. Interpretação técnica
+        if self.render_context.findings:
             self.findings_page.render(
                 layout=self.layout,
                 render_context=self.render_context,
             )
 
+        # 6. Observações da análise
+        if self.section_enabled("observations"):
+            self.analysis_page.render_notes(
+                layout=self.layout,
+                render_context=self.render_context,
+            )
+
+        # 7. Conclusão técnica
+        # 8. Limitações e observações
+        # 9. Controle técnico
+        # 10. Responsabilidades
         if self.section_enabled("technical_control"):
             self.technical_control_page.render(
                 layout=self.layout,
@@ -53,14 +76,12 @@ class TomographyRenderer(BaseReportRenderer):
             )
 
     def _analysis_enabled(self) -> bool:
-        return any(
-            self.section_enabled(key)
-            for key in (
-                "measurement",
-                "documents",
-                "images",
-                "observations",
-            )
+        if self.render_context is None:
+            return False
+
+        return bool(
+            self.section_enabled("images")
+            and self.render_context.get_report_images()
         )
 
     def _findings_enabled(self) -> bool:

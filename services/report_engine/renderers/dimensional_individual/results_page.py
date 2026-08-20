@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import fitz
@@ -118,9 +119,7 @@ class DimensionalIndividualResultsPage:
         groups = render_context.statistical_groups
 
         if not groups:
-            self._render_empty_state(
-                layout=layout,
-            )
+            # Regra METRA: se não há informação real, a seção não aparece.
             return
 
         self._render_summary(
@@ -138,9 +137,10 @@ class DimensionalIndividualResultsPage:
             groups=groups,
         )
 
-        self._render_relevant_chart(
+        self._render_graphical_analysis(
             layout=layout,
             render_context=render_context,
+            groups=groups,
         )
 
     # =============================================================
@@ -994,32 +994,293 @@ class DimensionalIndividualResultsPage:
             )
 
     # =============================================================
-    # GRÁFICO RELEVANTE
+    # ANÁLISE GRÁFICA
     # =============================================================
 
-    def _render_relevant_chart(
+    def _render_graphical_analysis(
         self,
         *,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
+        groups: list[Any],
     ) -> None:
-        chart_path = (
-            render_context.group_summary_chart
+        """
+        Gráficos do template individual.
+
+        Regras:
+        - o gráfico principal mostra o desvio relativo ao nominal (%);
+        - não exibe gráficos redundantes com a mesma informação;
+        - só adiciona um segundo gráfico quando houver tolerâncias realmente
+          avaliáveis e, portanto, uma leitura técnica diferente;
+        - sem tolerâncias, permanece apenas o gráfico de desvio relativo.
+        """
+
+        comparable = self._collect_comparable_groups(
+            groups
+        )
+
+        deviations = self._collect_deviation_groups(
+            groups
+        )
+
+        summary = render_context.overall_statistics
+
+        evaluated_count = int(
+            summary.get(
+                "evaluated_count",
+                0,
+            )
+            or 0
+        )
+
+        blocks = []
+
+        percentage_rows = self._collect_percentage_deviation_groups(
+            groups
+        )
+
+        if len(percentage_rows) >= 2:
+            blocks.append(
+                (
+                    "DESVIO RELATIVO AO NOMINAL",
+                    "Apresenta o desvio percentual de cada característica em relação ao valor nominal, facilitando a comparação entre grandezas.",
+                    "percentage_deviation",
+                    percentage_rows,
+                )
+            )
+
+        tolerance_rows = self._collect_tolerance_groups(
+            groups
         )
 
         if (
-            chart_path is None
-            or not chart_path.exists()
+            evaluated_count > 0
+            and len(tolerance_rows) >= 1
         ):
+            blocks.append(
+                (
+                    "POSIÇÃO DENTRO DA TOLERÂNCIA",
+                    "Mostra onde o valor medido se encontra em relação aos limites inferior e superior informados.",
+                    "tolerance",
+                    tolerance_rows,
+                )
+            )
+
+        if not blocks:
             return
 
-        height = 232.0
-        caption_height = 34.0
+        for (
+            title,
+            description,
+            chart_type,
+            data,
+        ) in blocks:
+            if chart_type == "percentage_deviation":
+                self._draw_percentage_deviation_chart(
+                    layout=layout,
+                    title=title,
+                    description=description,
+                    rows=data,
+                )
+            elif chart_type == "tolerance":
+                self._draw_tolerance_chart(
+                    layout=layout,
+                    title=title,
+                    description=description,
+                    rows=data,
+                )
+
+    def _collect_comparable_groups(
+        self,
+        groups: list[Any],
+    ) -> list[dict[str, Any]]:
+        rows = []
+
+        for group in groups:
+            measurement = (
+                group.measurements[0]
+                if getattr(
+                    group,
+                    "measurements",
+                    None,
+                )
+                else None
+            )
+
+            if measurement is None:
+                continue
+
+            nominal = self._as_float(
+                getattr(
+                    group,
+                    "nominal_value",
+                    None,
+                )
+            )
+
+            measured = self._as_float(
+                getattr(
+                    measurement,
+                    "measured_value",
+                    None,
+                )
+            )
+
+            if nominal is None or measured is None:
+                continue
+
+            rows.append(
+                {
+                    "name": self._clean_text(
+                        getattr(
+                            group,
+                            "display_name",
+                            None,
+                        ),
+                        fallback="Característica",
+                    ),
+                    "nominal": nominal,
+                    "measured": measured,
+                }
+            )
+
+        return rows
+
+    def _collect_deviation_groups(
+        self,
+        groups: list[Any],
+    ) -> list[dict[str, Any]]:
+        rows = []
+
+        for group in groups:
+            measurement = (
+                group.measurements[0]
+                if getattr(
+                    group,
+                    "measurements",
+                    None,
+                )
+                else None
+            )
+
+            if measurement is None:
+                continue
+
+            deviation = self._as_float(
+                getattr(
+                    measurement,
+                    "deviation",
+                    None,
+                )
+            )
+
+            if deviation is None:
+                continue
+
+            rows.append(
+                {
+                    "name": self._clean_text(
+                        getattr(
+                            group,
+                            "display_name",
+                            None,
+                        ),
+                        fallback="Característica",
+                    ),
+                    "deviation": deviation,
+                }
+            )
+
+        return rows
+
+    def _collect_percentage_deviation_groups(
+        self,
+        groups: list[Any],
+    ) -> list[dict[str, Any]]:
+        rows = []
+
+        for group in groups:
+            measurement = (
+                group.measurements[0]
+                if getattr(
+                    group,
+                    "measurements",
+                    None,
+                )
+                else None
+            )
+
+            if measurement is None:
+                continue
+
+            nominal = self._as_float(
+                getattr(
+                    group,
+                    "nominal_value",
+                    None,
+                )
+            )
+            measured = self._as_float(
+                getattr(
+                    measurement,
+                    "measured_value",
+                    None,
+                )
+            )
+
+            if (
+                nominal is None
+                or measured is None
+                or abs(nominal) <= 1e-12
+            ):
+                continue
+
+            percentage = (
+                (measured - nominal)
+                / abs(nominal)
+                * 100.0
+            )
+
+            rows.append(
+                {
+                    "name": self._clean_text(
+                        getattr(
+                            group,
+                            "display_name",
+                            None,
+                        ),
+                        fallback="Característica",
+                    ),
+                    "percentage": percentage,
+                }
+            )
+
+        return rows
+
+    def _draw_percentage_deviation_chart(
+        self,
+        *,
+        layout: ReportLayoutEngine,
+        title: str,
+        description: str,
+        rows: list[dict[str, Any]],
+    ) -> None:
+        rows = rows[:10]
+
+        chart_height = max(
+            150.0,
+            48.0 + len(rows) * 31.0,
+        )
+
+        total_height = (
+            self.SECTION_TITLE_HEIGHT
+            + 34.0
+            + chart_height
+            + self.GAP
+        )
 
         page = layout.ensure_space(
-            self.SECTION_TITLE_HEIGHT
-            + height
-            + caption_height,
+            total_height,
             repeated_title="ANÁLISE GRÁFICA",
         )
 
@@ -1028,49 +1289,862 @@ class DimensionalIndividualResultsPage:
             layout=layout,
             title="ANÁLISE GRÁFICA DAS CARACTERÍSTICAS",
         )
-
         layout.advance(
             self.SECTION_TITLE_HEIGHT
         )
 
+        self._draw_chart_heading(
+            page=page,
+            layout=layout,
+            title=title,
+            description=description,
+        )
+        layout.advance(34.0)
+
         rect = layout.full_width_rect(
-            height
+            chart_height
         )
 
         page.draw_rect(
             rect,
             color=self.COLOR_BORDER,
-            fill=(
-                1,
-                1,
-                1,
-            ),
+            fill=(1, 1, 1),
             width=0.5,
         )
 
-        page.insert_image(
-            fitz.Rect(
-                rect.x0 + 10,
-                rect.y0 + 10,
-                rect.x1 - 10,
-                rect.y1 - 10,
-            ),
-            filename=str(
-                chart_path
-            ),
-            keep_proportion=True,
+        max_abs = max(
+            abs(row["percentage"])
+            for row in rows
         )
+
+        if max_abs <= 1e-12:
+            max_abs = 1.0
+
+        label_width = min(
+            180.0,
+            rect.width * 0.34,
+        )
+        plot_x0 = rect.x0 + label_width
+        plot_x1 = rect.x1 - 60.0
+        zero_x = (
+            plot_x0 + plot_x1
+        ) / 2.0
+        half_width = (
+            plot_x1 - plot_x0
+        ) / 2.0
+
+        top = rect.y0 + 15.0
+        row_height = (
+            rect.height - 30.0
+        ) / len(rows)
+
+        page.draw_line(
+            fitz.Point(
+                zero_x,
+                rect.y0 + 9,
+            ),
+            fitz.Point(
+                zero_x,
+                rect.y1 - 9,
+            ),
+            color=self.COLOR_MUTED,
+            width=0.6,
+        )
+
+        for index, row in enumerate(rows):
+            center_y = (
+                top
+                + index * row_height
+                + row_height / 2
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    rect.x0 + 8,
+                    center_y - 10,
+                    plot_x0 - 8,
+                    center_y + 10,
+                ),
+                self._short_label(
+                    row["name"],
+                    30,
+                ),
+                fontsize=5.7,
+                fontname="helv",
+                color=self.COLOR_TEXT,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
+
+            percentage = row["percentage"]
+            length = (
+                abs(percentage)
+                / max_abs
+                * (half_width - 10.0)
+            )
+
+            if percentage >= 0:
+                x0 = zero_x
+                x1 = zero_x + length
+                fill = self.COLOR_BLUE
+            else:
+                x0 = zero_x - length
+                x1 = zero_x
+                fill = self.COLOR_NAVY
+
+            if abs(x1 - x0) < 1.0:
+                x1 = x0 + (
+                    1.0
+                    if percentage >= 0
+                    else -1.0
+                )
+
+            page.draw_rect(
+                fitz.Rect(
+                    min(x0, x1),
+                    center_y - 5.0,
+                    max(x0, x1),
+                    center_y + 5.0,
+                ),
+                color=fill,
+                fill=fill,
+                width=0.4,
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    plot_x1 + 4,
+                    center_y - 9,
+                    rect.x1 - 6,
+                    center_y + 9,
+                ),
+                f"{percentage:+.2f}%",
+                fontsize=5.6,
+                fontname="hebo",
+                color=self.COLOR_TEXT,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
 
         layout.advance(
-            height
+            chart_height
+            + self.GAP
         )
 
-        caption_rect = layout.full_width_rect(
-            caption_height
+    def _collect_tolerance_groups(
+        self,
+        groups: list[Any],
+    ) -> list[dict[str, Any]]:
+        rows = []
+
+        for group in groups:
+            measurement = (
+                group.measurements[0]
+                if getattr(
+                    group,
+                    "measurements",
+                    None,
+                )
+                else None
+            )
+
+            if measurement is None:
+                continue
+
+            measured = self._as_float(
+                getattr(
+                    measurement,
+                    "measured_value",
+                    None,
+                )
+            )
+            lower = self._as_float(
+                getattr(
+                    group,
+                    "lower_limit",
+                    None,
+                )
+            )
+            upper = self._as_float(
+                getattr(
+                    group,
+                    "upper_limit",
+                    None,
+                )
+            )
+
+            if (
+                measured is None
+                or lower is None
+                or upper is None
+                or upper <= lower
+            ):
+                continue
+
+            rows.append(
+                {
+                    "name": self._clean_text(
+                        getattr(
+                            group,
+                            "display_name",
+                            None,
+                        ),
+                        fallback="Característica",
+                    ),
+                    "measured": measured,
+                    "lower": lower,
+                    "upper": upper,
+                }
+            )
+
+        return rows
+
+    def _draw_tolerance_chart(
+        self,
+        *,
+        layout: ReportLayoutEngine,
+        title: str,
+        description: str,
+        rows: list[dict[str, Any]],
+    ) -> None:
+        rows = rows[:10]
+
+        chart_height = max(
+            150.0,
+            48.0 + len(rows) * 31.0,
+        )
+
+        total_height = (
+            self.SECTION_TITLE_HEIGHT
+            + 34.0
+            + chart_height
+            + self.GAP
+        )
+
+        page = layout.ensure_space(
+            total_height,
+            repeated_title="ANÁLISE GRÁFICA",
+        )
+
+        self._draw_section_title(
+            page=page,
+            layout=layout,
+            title="ANÁLISE GRÁFICA DAS CARACTERÍSTICAS",
+        )
+        layout.advance(
+            self.SECTION_TITLE_HEIGHT
+        )
+
+        self._draw_chart_heading(
+            page=page,
+            layout=layout,
+            title=title,
+            description=description,
+        )
+        layout.advance(34.0)
+
+        rect = layout.full_width_rect(
+            chart_height
         )
 
         page.draw_rect(
-            caption_rect,
+            rect,
+            color=self.COLOR_BORDER,
+            fill=(1, 1, 1),
+            width=0.5,
+        )
+
+        label_width = min(
+            180.0,
+            rect.width * 0.34,
+        )
+        plot_x0 = rect.x0 + label_width
+        plot_x1 = rect.x1 - 70.0
+
+        top = rect.y0 + 15.0
+        row_height = (
+            rect.height - 30.0
+        ) / len(rows)
+
+        for index, row in enumerate(rows):
+            center_y = (
+                top
+                + index * row_height
+                + row_height / 2
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    rect.x0 + 8,
+                    center_y - 10,
+                    plot_x0 - 8,
+                    center_y + 10,
+                ),
+                self._short_label(
+                    row["name"],
+                    30,
+                ),
+                fontsize=5.7,
+                fontname="helv",
+                color=self.COLOR_TEXT,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
+
+            # A faixa inteira representa os limites de tolerância.
+            page.draw_line(
+                fitz.Point(
+                    plot_x0,
+                    center_y,
+                ),
+                fitz.Point(
+                    plot_x1,
+                    center_y,
+                ),
+                color=self.COLOR_BLUE,
+                width=6.0,
+            )
+
+            position = (
+                row["measured"] - row["lower"]
+            ) / (
+                row["upper"] - row["lower"]
+            )
+
+            # Permite visualizar também resultados fora da faixa.
+            clamped = max(
+                -0.12,
+                min(
+                    1.12,
+                    position,
+                ),
+            )
+
+            measured_x = (
+                plot_x0
+                + clamped
+                * (
+                    plot_x1 - plot_x0
+                )
+            )
+
+            in_tolerance = (
+                0.0 <= position <= 1.0
+            )
+
+            point_color = (
+                self.COLOR_GREEN
+                if in_tolerance
+                else self.COLOR_RED
+            )
+
+            page.draw_circle(
+                fitz.Point(
+                    measured_x,
+                    center_y,
+                ),
+                radius=4.2,
+                color=point_color,
+                fill=point_color,
+                width=0.5,
+            )
+
+            status = (
+                "Dentro"
+                if in_tolerance
+                else "Fora"
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    plot_x1 + 8,
+                    center_y - 9,
+                    rect.x1 - 6,
+                    center_y + 9,
+                ),
+                status,
+                fontsize=5.6,
+                fontname="hebo",
+                color=point_color,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
+
+        layout.advance(
+            chart_height
+            + self.GAP
+        )
+
+    def _draw_nominal_measured_chart(
+        self,
+        *,
+        layout: ReportLayoutEngine,
+        title: str,
+        description: str,
+        rows: list[dict[str, Any]],
+    ) -> None:
+        rows = rows[:10]
+
+        chart_height = max(
+            150.0,
+            48.0 + len(rows) * 31.0,
+        )
+
+        total_height = (
+            self.SECTION_TITLE_HEIGHT
+            + 34.0
+            + chart_height
+            + self.GAP
+        )
+
+        page = layout.ensure_space(
+            total_height,
+            repeated_title="ANÁLISE GRÁFICA",
+        )
+
+        self._draw_section_title(
+            page=page,
+            layout=layout,
+            title="ANÁLISE GRÁFICA DAS CARACTERÍSTICAS",
+        )
+        layout.advance(
+            self.SECTION_TITLE_HEIGHT
+        )
+
+        self._draw_chart_heading(
+            page=page,
+            layout=layout,
+            title=title,
+            description=description,
+        )
+        layout.advance(34.0)
+
+        rect = layout.full_width_rect(
+            chart_height
+        )
+
+        page.draw_rect(
+            rect,
+            color=self.COLOR_BORDER,
+            fill=(1, 1, 1),
+            width=0.5,
+        )
+
+        all_values = [
+            value
+            for row in rows
+            for value in (
+                row["nominal"],
+                row["measured"],
+            )
+        ]
+
+        minimum = min(all_values)
+        maximum = max(all_values)
+        span = maximum - minimum
+
+        if span <= 1e-12:
+            span = max(
+                abs(maximum) * 0.02,
+                1.0,
+            )
+
+        padding = span * 0.12
+        axis_min = minimum - padding
+        axis_max = maximum + padding
+
+        label_width = min(
+            180.0,
+            rect.width * 0.34,
+        )
+        plot_x0 = rect.x0 + label_width
+        plot_x1 = rect.x1 - 22.0
+        top = rect.y0 + 18.0
+        row_height = (
+            rect.height - 34.0
+        ) / len(rows)
+
+        for index, row in enumerate(rows):
+            center_y = (
+                top
+                + index * row_height
+                + row_height / 2
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    rect.x0 + 8,
+                    center_y - 10,
+                    plot_x0 - 8,
+                    center_y + 10,
+                ),
+                self._short_label(
+                    row["name"],
+                    30,
+                ),
+                fontsize=5.7,
+                fontname="helv",
+                color=self.COLOR_TEXT,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
+
+            page.draw_line(
+                fitz.Point(
+                    plot_x0,
+                    center_y,
+                ),
+                fitz.Point(
+                    plot_x1,
+                    center_y,
+                ),
+                color=self.COLOR_BORDER,
+                width=0.45,
+            )
+
+            nominal_x = self._scale_x(
+                row["nominal"],
+                axis_min,
+                axis_max,
+                plot_x0,
+                plot_x1,
+            )
+            measured_x = self._scale_x(
+                row["measured"],
+                axis_min,
+                axis_max,
+                plot_x0,
+                plot_x1,
+            )
+
+            # Nominal: marca vertical azul.
+            page.draw_line(
+                fitz.Point(
+                    nominal_x,
+                    center_y - 7,
+                ),
+                fitz.Point(
+                    nominal_x,
+                    center_y + 7,
+                ),
+                color=self.COLOR_BLUE,
+                width=2.2,
+            )
+
+            # Medido: ponto navy.
+            page.draw_circle(
+                fitz.Point(
+                    measured_x,
+                    center_y,
+                ),
+                radius=3.5,
+                color=self.COLOR_NAVY,
+                fill=self.COLOR_NAVY,
+                width=0.5,
+            )
+
+        legend_y = rect.y1 - 13.0
+
+        page.draw_line(
+            fitz.Point(
+                rect.x0 + 14,
+                legend_y - 3,
+            ),
+            fitz.Point(
+                rect.x0 + 14,
+                legend_y + 5,
+            ),
+            color=self.COLOR_BLUE,
+            width=2.0,
+        )
+
+        page.insert_text(
+            fitz.Point(
+                rect.x0 + 22,
+                legend_y + 3,
+            ),
+            "Nominal",
+            fontsize=5.5,
+            fontname="helv",
+            color=self.COLOR_MUTED,
+        )
+
+        page.draw_circle(
+            fitz.Point(
+                rect.x0 + 82,
+                legend_y + 1,
+            ),
+            radius=3.0,
+            color=self.COLOR_NAVY,
+            fill=self.COLOR_NAVY,
+            width=0.4,
+        )
+
+        page.insert_text(
+            fitz.Point(
+                rect.x0 + 90,
+                legend_y + 3,
+            ),
+            "Medido",
+            fontsize=5.5,
+            fontname="helv",
+            color=self.COLOR_MUTED,
+        )
+
+        layout.advance(
+            chart_height
+            + self.GAP
+        )
+
+    def _draw_deviation_chart(
+        self,
+        *,
+        layout: ReportLayoutEngine,
+        title: str,
+        description: str,
+        rows: list[dict[str, Any]],
+    ) -> None:
+        rows = rows[:10]
+
+        chart_height = max(
+            150.0,
+            48.0 + len(rows) * 31.0,
+        )
+
+        total_height = (
+            self.SECTION_TITLE_HEIGHT
+            + 34.0
+            + chart_height
+            + self.GAP
+        )
+
+        page = layout.ensure_space(
+            total_height,
+            repeated_title="ANÁLISE GRÁFICA",
+        )
+
+        self._draw_section_title(
+            page=page,
+            layout=layout,
+            title="ANÁLISE GRÁFICA DAS CARACTERÍSTICAS",
+        )
+        layout.advance(
+            self.SECTION_TITLE_HEIGHT
+        )
+
+        self._draw_chart_heading(
+            page=page,
+            layout=layout,
+            title=title,
+            description=description,
+        )
+        layout.advance(34.0)
+
+        rect = layout.full_width_rect(
+            chart_height
+        )
+
+        page.draw_rect(
+            rect,
+            color=self.COLOR_BORDER,
+            fill=(1, 1, 1),
+            width=0.5,
+        )
+
+        max_abs = max(
+            abs(row["deviation"])
+            for row in rows
+        )
+
+        if max_abs <= 1e-12:
+            max_abs = 1.0
+
+        label_width = min(
+            180.0,
+            rect.width * 0.34,
+        )
+        plot_x0 = rect.x0 + label_width
+        plot_x1 = rect.x1 - 48.0
+        zero_x = (
+            plot_x0 + plot_x1
+        ) / 2.0
+        half_width = (
+            plot_x1 - plot_x0
+        ) / 2.0
+
+        top = rect.y0 + 15.0
+        row_height = (
+            rect.height - 30.0
+        ) / len(rows)
+
+        page.draw_line(
+            fitz.Point(
+                zero_x,
+                rect.y0 + 9,
+            ),
+            fitz.Point(
+                zero_x,
+                rect.y1 - 9,
+            ),
+            color=self.COLOR_MUTED,
+            width=0.6,
+        )
+
+        for index, row in enumerate(rows):
+            center_y = (
+                top
+                + index * row_height
+                + row_height / 2
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    rect.x0 + 8,
+                    center_y - 10,
+                    plot_x0 - 8,
+                    center_y + 10,
+                ),
+                self._short_label(
+                    row["name"],
+                    30,
+                ),
+                fontsize=5.7,
+                fontname="helv",
+                color=self.COLOR_TEXT,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
+
+            deviation = row["deviation"]
+            length = (
+                abs(deviation)
+                / max_abs
+                * (half_width - 10.0)
+            )
+
+            if deviation >= 0:
+                x0 = zero_x
+                x1 = zero_x + length
+                fill = self.COLOR_BLUE
+            else:
+                x0 = zero_x - length
+                x1 = zero_x
+                fill = self.COLOR_NAVY
+
+            bar = fitz.Rect(
+                x0,
+                center_y - 5.0,
+                x1,
+                center_y + 5.0,
+            )
+
+            page.draw_rect(
+                bar,
+                color=fill,
+                fill=fill,
+                width=0.4,
+            )
+
+            page.insert_textbox(
+                fitz.Rect(
+                    plot_x1 + 4,
+                    center_y - 9,
+                    rect.x1 - 6,
+                    center_y + 9,
+                ),
+                self._format_number(
+                    deviation
+                ),
+                fontsize=5.6,
+                fontname="hebo",
+                color=self.COLOR_TEXT,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
+
+        layout.advance(
+            chart_height
+            + self.GAP
+        )
+
+    def _draw_image_chart(
+        self,
+        *,
+        layout: ReportLayoutEngine,
+        title: str,
+        description: str,
+        chart_path: Path,
+    ) -> None:
+        chart_height = 210.0
+
+        total_height = (
+            self.SECTION_TITLE_HEIGHT
+            + 34.0
+            + chart_height
+            + self.GAP
+        )
+
+        page = layout.ensure_space(
+            total_height,
+            repeated_title="ANÁLISE GRÁFICA",
+        )
+
+        self._draw_section_title(
+            page=page,
+            layout=layout,
+            title="ANÁLISE GRÁFICA DAS CARACTERÍSTICAS",
+        )
+        layout.advance(
+            self.SECTION_TITLE_HEIGHT
+        )
+
+        self._draw_chart_heading(
+            page=page,
+            layout=layout,
+            title=title,
+            description=description,
+        )
+        layout.advance(34.0)
+
+        rect = layout.full_width_rect(
+            chart_height
+        )
+
+        page.draw_rect(
+            rect,
+            color=self.COLOR_BORDER,
+            fill=(1, 1, 1),
+            width=0.5,
+        )
+
+        try:
+            page.insert_image(
+                fitz.Rect(
+                    rect.x0 + 10,
+                    rect.y0 + 10,
+                    rect.x1 - 10,
+                    rect.y1 - 10,
+                ),
+                filename=str(
+                    chart_path
+                ),
+                keep_proportion=True,
+            )
+        except Exception:
+            return
+
+        layout.advance(
+            chart_height
+            + self.GAP
+        )
+
+    def _draw_chart_heading(
+        self,
+        *,
+        page: fitz.Page,
+        layout: ReportLayoutEngine,
+        title: str,
+        description: str,
+    ) -> None:
+        rect = layout.full_width_rect(
+            34.0
+        )
+
+        page.draw_rect(
+            rect,
             color=self.COLOR_BORDER,
             fill=self.COLOR_SURFACE,
             width=0.4,
@@ -1078,24 +2152,92 @@ class DimensionalIndividualResultsPage:
 
         page.insert_textbox(
             fitz.Rect(
-                caption_rect.x0 + 10,
-                caption_rect.y0 + 7,
-                caption_rect.x1 - 10,
-                caption_rect.y1 - 5,
+                rect.x0 + 9,
+                rect.y0 + 5,
+                rect.x1 - 9,
+                rect.y0 + 16,
             ),
-            (
-                "Visão comparativa das características dimensionais "
-                "avaliadas. O gráfico complementa a tabela consolidada "
-                "e facilita a identificação visual dos resultados críticos."
-            ),
-            fontsize=5.8,
-            fontname="helv",
-            color=self.COLOR_MUTED,
-            lineheight=1.10,
+            title,
+            fontsize=6.5,
+            fontname="hebo",
+            color=self.COLOR_NAVY,
         )
 
-        layout.advance(
-            caption_height
+        page.insert_textbox(
+            fitz.Rect(
+                rect.x0 + 9,
+                rect.y0 + 17,
+                rect.x1 - 9,
+                rect.y1 - 4,
+            ),
+            description,
+            fontsize=5.4,
+            fontname="helv",
+            color=self.COLOR_MUTED,
+        )
+
+    def _as_float(
+        self,
+        value: Any,
+    ) -> float | None:
+        if value is None:
+            return None
+
+        try:
+            return float(value)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None
+
+    def _scale_x(
+        self,
+        value: float,
+        minimum: float,
+        maximum: float,
+        x0: float,
+        x1: float,
+    ) -> float:
+        if maximum <= minimum:
+            return (
+                x0 + x1
+            ) / 2.0
+
+        ratio = (
+            value - minimum
+        ) / (
+            maximum - minimum
+        )
+
+        return (
+            x0
+            + ratio
+            * (
+                x1 - x0
+            )
+        )
+
+    def _short_label(
+        self,
+        value: str,
+        maximum: int,
+    ) -> str:
+        cleaned = " ".join(
+            str(
+                value
+                or ""
+            ).split()
+        )
+
+        if len(cleaned) <= maximum:
+            return cleaned
+
+        return (
+            cleaned[
+                : maximum - 1
+            ]
+            + "…"
         )
 
     # =============================================================

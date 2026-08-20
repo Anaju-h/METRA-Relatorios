@@ -155,8 +155,7 @@ class TomographyCoverPage:
             ("Cliente", render_context.project.client),
             (
                 "Equipamento",
-                render_context.project.equipment
-                or "ZEISS BOSELLO MAX",
+                render_context.project.equipment,
             ),
         ]
 
@@ -169,6 +168,13 @@ class TomographyCoverPage:
                 datetime.now().strftime("%d/%m/%Y"),
             )
         )
+
+        # Regra METRA: campos vazios não ocupam espaço no relatório.
+        rows = [
+            (label, value)
+            for label, value in rows
+            if self._has_text(value)
+        ]
 
         row_heights = self._calculate_row_heights(rows)
         content_height = max(218.0, sum(row_heights))

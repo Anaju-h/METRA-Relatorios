@@ -6,24 +6,22 @@ from typing import Any
 
 import fitz
 
-from services.report_engine.layout_engine import (
-    ReportLayoutEngine,
-)
-from services.report_engine.report_context import (
-    ReportRenderContext,
-)
+from services.report_engine.layout_engine import ReportLayoutEngine
+from services.report_engine.report_context import ReportRenderContext
 
 
 class DimensionalBatchCoverPage:
     """
-    Primeira página do relatório dimensional em lote.
+    Página de abertura do relatório dimensional em lote.
 
-    Diretrizes:
-    - identifica claramente o lote;
-    - prioriza a imagem principal sem desperdiçar espaço;
-    - adapta os indicadores à existência ou não de avaliação;
-    - não expõe mensagens internas de diagnóstico ao cliente;
-    - respeita a opção de exibir ou ocultar a versão.
+    A abertura deve responder rapidamente:
+    - qual processo está sendo apresentado;
+    - qual peça foi avaliada;
+    - qual o tamanho da amostra;
+    - quantos resultados foram obtidos;
+    - qual a situação geral dos resultados avaliados.
+
+    Nenhuma conclusão técnica é apresentada nesta etapa.
     """
 
     COLOR_NAVY = (0.025, 0.110, 0.215)
@@ -37,7 +35,7 @@ class DimensionalBatchCoverPage:
     COLOR_OK_BG = (0.910, 0.975, 0.935)
 
     COLOR_NOK = (0.760, 0.160, 0.120)
-    COLOR_NOK_BG = (0.995, 0.920, 0.905)
+    COLOR_NOK_BG = (0.995, 0.955, 0.945)
 
     SECTION_TITLE_HEIGHT = 26.0
     GAP = 10.0
@@ -63,26 +61,19 @@ class DimensionalBatchCoverPage:
             render_context=render_context,
         )
 
-        self._draw_process_and_image(
+        self._draw_process_overview(
             page=page,
             layout=layout,
             render_context=render_context,
         )
 
         self._draw_batch_summary(
-            page=page,
-            layout=layout,
-            render_context=render_context,
-        )
-
-        self._draw_global_result(
-            page=page,
             layout=layout,
             render_context=render_context,
         )
 
     # =============================================================
-    # IDENTIDADE
+    # IDENTIDADE DO RELATÓRIO
     # =============================================================
 
     def _draw_report_identity(
@@ -92,8 +83,9 @@ class DimensionalBatchCoverPage:
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
     ) -> None:
-        height = 50.0
-        layout.ensure_space(height)
+        height = 54.0
+
+        page = layout.ensure_space(height)
 
         rect = layout.full_width_rect(height)
 
@@ -170,7 +162,7 @@ class DimensionalBatchCoverPage:
             page.insert_textbox(
                 fitz.Rect(
                     divider_x + 10,
-                    rect.y0 + 34,
+                    rect.y0 + 35,
                     rect.x1 - 8,
                     rect.y1 - 5,
                 ),
@@ -188,63 +180,42 @@ class DimensionalBatchCoverPage:
         )
 
     # =============================================================
-    # IDENTIFICAÇÃO + IMAGEM
+    # VISÃO GERAL
     # =============================================================
 
-    def _draw_process_and_image(
+    def _draw_process_overview(
         self,
         *,
         page: fitz.Page,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
     ) -> None:
-        unit_count = self._resolve_unit_count(
+        rows = self._build_overview_rows(
             render_context
         )
 
-        rows = [
-            (
-                "Processo",
-                render_context.project.name,
-            ),
-            (
-                "Peça / modelo",
-                render_context.project.part_name,
-            ),
-            (
-                "Código da peça",
-                render_context.project.part_code,
-            ),
-            (
-                "Cliente",
-                render_context.project.client,
-            ),
-            (
-                "Equipamento",
-                render_context.project.equipment,
-            ),
-            (
-                "Quantidade medida",
-                f"{unit_count} unidade(s)",
-            ),
-            (
-                "Data de emissão",
-                datetime.now().strftime(
-                    "%d/%m/%Y"
-                ),
-            ),
-        ]
+        has_image = (
+            render_context.primary_image
+            is not None
+        )
+
+        if has_image:
+            left_width_ratio = 0.45
+        else:
+            left_width_ratio = 1.0
+
+        available_width = (
+            layout.geometry.content_width
+            * left_width_ratio
+        )
 
         row_heights = self._calculate_row_heights(
             rows=rows,
-            available_width=(
-                layout.geometry.content_width
-                * 0.42
-            ),
+            available_width=available_width,
         )
 
         content_height = max(
-            218.0,
+            190.0 if has_image else 0.0,
             sum(row_heights),
         )
 
@@ -255,76 +226,176 @@ class DimensionalBatchCoverPage:
 
         page = layout.ensure_space(
             block_height,
-            repeated_title="IDENTIFICAÇÃO DO LOTE",
-        )
-
-        gap = 12.0
-
-        left_width = (
-            layout.geometry.content_width
-            * 0.43
-        )
-
-        right_width = (
-            layout.geometry.content_width
-            - left_width
-            - gap
+            repeated_title="RESUMO DO PROCESSO",
         )
 
         start_y = layout.cursor_y
 
-        left_rect = fitz.Rect(
-            layout.geometry.margin_left,
-            start_y,
-            layout.geometry.margin_left + left_width,
-            start_y + block_height,
-        )
+        if not has_image:
+            full_rect = fitz.Rect(
+                layout.geometry.margin_left,
+                start_y,
+                layout.geometry.margin_left
+                + layout.geometry.content_width,
+                start_y + block_height,
+            )
 
-        right_rect = fitz.Rect(
-            left_rect.x1 + gap,
-            start_y,
-            left_rect.x1 + gap + right_width,
-            start_y + block_height,
-        )
+            self._draw_panel_title(
+                page=page,
+                rect=full_rect,
+                title="1. RESUMO DO PROCESSO",
+            )
 
-        self._draw_panel_title(
-            page=page,
-            rect=left_rect,
-            title="1. IDENTIFICAÇÃO DO LOTE",
-        )
+            self._draw_identification_rows(
+                page=page,
+                rect=fitz.Rect(
+                    full_rect.x0,
+                    full_rect.y0
+                    + self.SECTION_TITLE_HEIGHT,
+                    full_rect.x1,
+                    full_rect.y1,
+                ),
+                rows=rows,
+                row_heights=row_heights,
+            )
 
-        self._draw_panel_title(
-            page=page,
-            rect=right_rect,
-            title="VISÃO GERAL DA PEÇA",
-        )
+        else:
+            gap = 12.0
 
-        self._draw_identification_rows(
-            page=page,
-            rect=fitz.Rect(
-                left_rect.x0,
-                left_rect.y0 + self.SECTION_TITLE_HEIGHT,
-                left_rect.x1,
-                left_rect.y1,
-            ),
-            rows=rows,
-            row_heights=row_heights,
-        )
+            left_width = (
+                layout.geometry.content_width
+                * left_width_ratio
+            )
 
-        self._draw_primary_image(
-            page=page,
-            rect=fitz.Rect(
-                right_rect.x0,
-                right_rect.y0 + self.SECTION_TITLE_HEIGHT,
-                right_rect.x1,
-                right_rect.y1,
-            ),
-            render_context=render_context,
-        )
+            right_width = (
+                layout.geometry.content_width
+                - left_width
+                - gap
+            )
+
+            left_rect = fitz.Rect(
+                layout.geometry.margin_left,
+                start_y,
+                layout.geometry.margin_left
+                + left_width,
+                start_y + block_height,
+            )
+
+            right_rect = fitz.Rect(
+                left_rect.x1 + gap,
+                start_y,
+                left_rect.x1
+                + gap
+                + right_width,
+                start_y + block_height,
+            )
+
+            self._draw_panel_title(
+                page=page,
+                rect=left_rect,
+                title="1. RESUMO DO PROCESSO",
+            )
+
+            self._draw_panel_title(
+                page=page,
+                rect=right_rect,
+                title="VISÃO GERAL DA PEÇA",
+            )
+
+            self._draw_identification_rows(
+                page=page,
+                rect=fitz.Rect(
+                    left_rect.x0,
+                    left_rect.y0
+                    + self.SECTION_TITLE_HEIGHT,
+                    left_rect.x1,
+                    left_rect.y1,
+                ),
+                rows=rows,
+                row_heights=row_heights,
+            )
+
+            self._draw_primary_image(
+                page=page,
+                rect=fitz.Rect(
+                    right_rect.x0,
+                    right_rect.y0
+                    + self.SECTION_TITLE_HEIGHT,
+                    right_rect.x1,
+                    right_rect.y1,
+                ),
+                render_context=render_context,
+            )
 
         layout.advance(
             block_height + self.GAP
         )
+
+    def _build_overview_rows(
+        self,
+        render_context: ReportRenderContext,
+    ) -> list[tuple[str, Any]]:
+        project = render_context.project
+
+        candidates = [
+            (
+                "Processo",
+                project.name,
+                True,
+            ),
+            (
+                "Peça / modelo",
+                project.part_name,
+                True,
+            ),
+            (
+                "Código da peça",
+                project.part_code,
+                False,
+            ),
+            (
+                "Cliente",
+                project.client,
+                False,
+            ),
+            (
+                "Equipamento",
+                project.equipment,
+                False,
+            ),
+            (
+                "Data de emissão",
+                datetime.now().strftime(
+                    "%d/%m/%Y"
+                ),
+                True,
+            ),
+        ]
+
+        rows: list[tuple[str, Any]] = []
+
+        for label, value, always_show in candidates:
+            cleaned = self._optional_text(
+                value
+            )
+
+            if (
+                cleaned is not None
+                or always_show
+            ):
+                rows.append(
+                    (
+                        label,
+                        cleaned
+                        or "Não informado",
+                    )
+                )
+
+        return rows
+
+    # =============================================================
+    # TÍTULOS DOS PAINÉIS
+    # =============================================================
 
     def _draw_panel_title(
         self,
@@ -337,7 +408,8 @@ class DimensionalBatchCoverPage:
             rect.x0,
             rect.y0,
             rect.x1,
-            rect.y0 + self.SECTION_TITLE_HEIGHT,
+            rect.y0
+            + self.SECTION_TITLE_HEIGHT,
         )
 
         page.draw_rect(
@@ -360,6 +432,10 @@ class DimensionalBatchCoverPage:
             color=(1, 1, 1),
         )
 
+    # =============================================================
+    # IDENTIFICAÇÃO
+    # =============================================================
+
     def _draw_identification_rows(
         self,
         *,
@@ -368,7 +444,10 @@ class DimensionalBatchCoverPage:
         rows: list[tuple[str, Any]],
         row_heights: list[float],
     ) -> None:
-        label_width = rect.width * 0.37
+        label_width = (
+            rect.width * 0.34
+        )
+
         y = rect.y0
 
         for index, (
@@ -401,7 +480,9 @@ class DimensionalBatchCoverPage:
                 fitz.Rect(
                     row_rect.x0 + 8,
                     row_rect.y0 + 7,
-                    row_rect.x0 + label_width - 4,
+                    row_rect.x0
+                    + label_width
+                    - 4,
                     row_rect.y1 - 5,
                 ),
                 label,
@@ -412,7 +493,8 @@ class DimensionalBatchCoverPage:
 
             page.insert_textbox(
                 fitz.Rect(
-                    row_rect.x0 + label_width,
+                    row_rect.x0
+                    + label_width,
                     row_rect.y0 + 7,
                     row_rect.x1 - 8,
                     row_rect.y1 - 5,
@@ -441,6 +523,10 @@ class DimensionalBatchCoverPage:
                 width=0.35,
             )
 
+    # =============================================================
+    # IMAGEM PRINCIPAL
+    # =============================================================
+
     def _draw_primary_image(
         self,
         *,
@@ -458,11 +544,6 @@ class DimensionalBatchCoverPage:
         image = render_context.primary_image
 
         if image is None:
-            self._draw_image_placeholder(
-                page=page,
-                rect=rect,
-                message="Imagem principal não definida",
-            )
             return
 
         image_path = Path(
@@ -483,14 +564,13 @@ class DimensionalBatchCoverPage:
             )
         )
 
-        caption_height = 0.0
-
-        if caption:
-            caption_height = (
-                27.0
-                if len(caption) <= 70
-                else 38.0
+        caption_height = (
+            self._estimate_caption_height(
+                caption
             )
+            if caption
+            else 0.0
+        )
 
         image_rect = fitz.Rect(
             rect.x0 + 10,
@@ -499,7 +579,7 @@ class DimensionalBatchCoverPage:
             (
                 rect.y1
                 - caption_height
-                - 8
+                - 7
                 if caption
                 else rect.y1 - 10
             ),
@@ -518,25 +598,24 @@ class DimensionalBatchCoverPage:
                 self._draw_image_placeholder(
                     page=page,
                     rect=image_rect,
-                    message="Não foi possível carregar a imagem",
                 )
         else:
             self._draw_image_placeholder(
                 page=page,
                 rect=image_rect,
-                message="Arquivo da imagem não encontrado",
             )
 
         if caption:
             page.insert_textbox(
                 fitz.Rect(
                     rect.x0 + 10,
-                    rect.y1 - caption_height,
+                    rect.y1
+                    - caption_height,
                     rect.x1 - 10,
-                    rect.y1 - 6,
+                    rect.y1 - 5,
                 ),
                 caption,
-                fontsize=5.6,
+                fontsize=5.8,
                 fontname="helv",
                 color=self.COLOR_MUTED,
                 align=fitz.TEXT_ALIGN_CENTER,
@@ -548,7 +627,6 @@ class DimensionalBatchCoverPage:
         *,
         page: fitz.Page,
         rect: fitz.Rect,
-        message: str,
     ) -> None:
         page.draw_rect(
             rect,
@@ -560,11 +638,15 @@ class DimensionalBatchCoverPage:
         page.insert_textbox(
             fitz.Rect(
                 rect.x0 + 12,
-                rect.y0 + rect.height / 2 - 8,
+                rect.y0
+                + rect.height / 2
+                - 8,
                 rect.x1 - 12,
-                rect.y0 + rect.height / 2 + 12,
+                rect.y0
+                + rect.height / 2
+                + 12,
             ),
-            message,
+            "Imagem indisponível",
             fontsize=7.0,
             fontname="helv",
             color=self.COLOR_MUTED,
@@ -572,36 +654,18 @@ class DimensionalBatchCoverPage:
         )
 
     # =============================================================
-    # RESUMO DO LOTE
+    # INDICADORES
     # =============================================================
 
     def _draw_batch_summary(
         self,
         *,
-        page: fitz.Page,
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
     ) -> None:
-        title_height = self.SECTION_TITLE_HEIGHT
-        card_height = 66.0
-        total_height = title_height + card_height
-
-        page = layout.ensure_space(
-            total_height,
-            repeated_title="RESUMO DO LOTE",
+        summary = (
+            render_context.overall_statistics
         )
-
-        title_rect = layout.full_width_rect(
-            title_height
-        )
-
-        self._draw_panel_title(
-            page=page,
-            rect=title_rect,
-            title="2. RESUMO ESTATÍSTICO DO LOTE",
-        )
-
-        summary = render_context.overall_statistics
 
         evaluated_count = int(
             summary.get(
@@ -611,116 +675,140 @@ class DimensionalBatchCoverPage:
             or 0
         )
 
-        base_indicators = [
-            (
-                "Unidades",
-                self._resolve_unit_count(
+        indicators = [
+            {
+                "label": "AMOSTRA",
+                "value": self._resolve_unit_count(
                     render_context
                 ),
-                "medidas",
-                self.COLOR_LIGHT_BLUE,
-                self.COLOR_NAVY,
-            ),
-            (
-                "Características",
-                summary.get(
+                "helper": "UNIDADES",
+                "background": self.COLOR_LIGHT_BLUE,
+                "accent": self.COLOR_NAVY,
+                "emphasis": True,
+            },
+            {
+                "label": "CARACTERÍSTICAS",
+                "value": summary.get(
                     "group_count",
                     0,
                 ),
-                "analisadas",
-                self.COLOR_LIGHT_BLUE,
-                self.COLOR_NAVY,
-            ),
-            (
-                "Resultados",
-                summary.get(
+                "helper": "ANALISADAS",
+                "background": self.COLOR_SURFACE,
+                "accent": self.COLOR_NAVY,
+            },
+            {
+                "label": "RESULTADOS",
+                "value": summary.get(
                     "measurement_count",
                     0,
                 ),
-                "medidos",
-                self.COLOR_LIGHT_BLUE,
-                self.COLOR_NAVY,
-            ),
+                "helper": "MEDIDOS",
+                "background": self.COLOR_SURFACE,
+                "accent": self.COLOR_NAVY,
+            },
         ]
 
         if evaluated_count > 0:
-            indicators = base_indicators + [
-                (
-                    "Conformes",
-                    summary.get(
-                        "ok_count",
-                        0,
-                    ),
-                    self._percentage_text(
-                        summary.get(
+            indicators.extend(
+                [
+                    {
+                        "label": "CONFORMES",
+                        "value": summary.get(
                             "ok_count",
                             0,
                         ),
-                        evaluated_count,
-                    ),
-                    self.COLOR_OK_BG,
-                    self.COLOR_OK,
-                ),
-                (
-                    "Não conformes",
-                    summary.get(
-                        "nok_count",
-                        0,
-                    ),
-                    self._percentage_text(
-                        summary.get(
+                        "helper": self._percentage_text(
+                            summary.get(
+                                "ok_count",
+                                0,
+                            ),
+                            evaluated_count,
+                        ),
+                        "background": self.COLOR_OK_BG,
+                        "accent": self.COLOR_OK,
+                    },
+                    {
+                        "label": "NÃO CONFORMES",
+                        "value": summary.get(
                             "nok_count",
                             0,
                         ),
-                        evaluated_count,
-                    ),
-                    self.COLOR_NOK_BG,
-                    self.COLOR_NOK,
-                ),
-                (
-                    "Conformidade",
-                    (
-                        f"{float(summary.get('conformity_percentage', 0.0) or 0.0):.1f}%"
-                    ),
-                    "dos avaliados",
-                    self.COLOR_LIGHT_BLUE,
-                    self.COLOR_NAVY,
-                ),
-            ]
-        else:
-            indicators = base_indicators + [
-                (
-                    "Documentos",
-                    len(
-                        render_context.documents
-                    ),
-                    "de origem",
-                    self.COLOR_LIGHT_BLUE,
-                    self.COLOR_NAVY,
-                ),
-            ]
+                        "helper": self._percentage_text(
+                            summary.get(
+                                "nok_count",
+                                0,
+                            ),
+                            evaluated_count,
+                        ),
+                        "background": self.COLOR_NOK_BG,
+                        "accent": self.COLOR_NOK,
+                    },
+                    {
+                        "label": "CONFORMIDADE",
+                        "value": (
+                            f"{float(summary.get('conformity_percentage', 0.0) or 0.0):.1f}%"
+                            .replace(
+                                ".",
+                                ",",
+                            )
+                        ),
+                        "helper": "DOS AVALIADOS",
+                        "background": self.COLOR_SURFACE,
+                        "accent": self.COLOR_NAVY,
+                    },
+                ]
+            )
+
+        title_height = (
+            self.SECTION_TITLE_HEIGHT
+        )
+
+        card_height = 72.0
+
+        total_height = (
+            title_height
+            + card_height
+        )
+
+        page = layout.ensure_space(
+            total_height,
+            repeated_title="RESUMO DO LOTE",
+        )
+
+        title_rect = (
+            layout.full_width_rect(
+                title_height
+            )
+        )
+
+        self._draw_panel_title(
+            page=page,
+            rect=title_rect,
+            title="2. RESUMO DO LOTE",
+        )
 
         gap = 6.0
 
         card_width = (
             layout.geometry.content_width
-            - gap * (
+            - gap
+            * (
                 len(indicators) - 1
             )
         ) / len(indicators)
 
-        start_y = layout.cursor_y + title_height
+        start_y = (
+            layout.cursor_y
+            + title_height
+        )
 
-        for index, (
-            label,
-            value,
-            helper,
-            background,
-            accent,
-        ) in enumerate(indicators):
+        for index, indicator in enumerate(
+            indicators
+        ):
             x = (
                 layout.geometry.margin_left
-                + index * (
+                + index
+                * (
                     card_width + gap
                 )
             )
@@ -732,21 +820,44 @@ class DimensionalBatchCoverPage:
                 start_y + card_height,
             )
 
+            emphasis = bool(
+                indicator.get(
+                    "emphasis",
+                    False,
+                )
+            )
+
+            border_width = (
+                1.0
+                if emphasis
+                else 0.5
+            )
+
+            border_color = (
+                self.COLOR_NAVY
+                if emphasis
+                else self.COLOR_BORDER
+            )
+
             page.draw_rect(
                 rect,
-                color=self.COLOR_BORDER,
-                fill=background,
-                width=0.5,
+                color=border_color,
+                fill=indicator[
+                    "background"
+                ],
+                width=border_width,
             )
 
             page.insert_textbox(
                 fitz.Rect(
                     rect.x0 + 4,
-                    rect.y0 + 6,
+                    rect.y0 + 7,
                     rect.x1 - 4,
-                    rect.y0 + 18,
+                    rect.y0 + 20,
                 ),
-                label,
+                str(
+                    indicator["label"]
+                ),
                 fontsize=5.4,
                 fontname="hebo",
                 color=self.COLOR_MUTED,
@@ -756,158 +867,54 @@ class DimensionalBatchCoverPage:
             page.insert_textbox(
                 fitz.Rect(
                     rect.x0 + 4,
-                    rect.y0 + 23,
+                    rect.y0 + 22,
                     rect.x1 - 4,
-                    rect.y0 + 43,
+                    rect.y0 + 49,
                 ),
                 str(
-                    value
+                    indicator["value"]
                 ),
-                fontsize=11.0,
+                fontsize=(
+                    16.0
+                    if emphasis
+                    else 11.5
+                ),
                 fontname="hebo",
-                color=accent,
+                color=indicator[
+                    "accent"
+                ],
                 align=fitz.TEXT_ALIGN_CENTER,
             )
 
             page.insert_textbox(
                 fitz.Rect(
                     rect.x0 + 4,
-                    rect.y0 + 45,
+                    rect.y0 + 51,
                     rect.x1 - 4,
                     rect.y1 - 5,
                 ),
-                helper,
-                fontsize=5.2,
-                fontname="helv",
-                color=accent,
+                str(
+                    indicator["helper"]
+                ),
+                fontsize=(
+                    5.8
+                    if emphasis
+                    else 5.2
+                ),
+                fontname=(
+                    "hebo"
+                    if emphasis
+                    else "helv"
+                ),
+                color=indicator[
+                    "accent"
+                ],
                 align=fitz.TEXT_ALIGN_CENTER,
             )
 
         layout.advance(
-            total_height + self.GAP
-        )
-
-    # =============================================================
-    # RESULTADO DO LOTE
-    # =============================================================
-
-    def _draw_global_result(
-        self,
-        *,
-        page: fitz.Page,
-        layout: ReportLayoutEngine,
-        render_context: ReportRenderContext,
-    ) -> None:
-        summary = render_context.overall_statistics
-
-        nok_count = int(
-            summary.get(
-                "nok_count",
-                0,
-            )
-            or 0
-        )
-
-        unknown_count = int(
-            summary.get(
-                "unknown_count",
-                0,
-            )
-            or 0
-        )
-
-        evaluated_count = int(
-            summary.get(
-                "evaluated_count",
-                0,
-            )
-            or 0
-        )
-
-        if nok_count > 0:
-            title = (
-                "RESULTADO DO LOTE: "
-                "NÃO CONFORMIDADES IDENTIFICADAS"
-            )
-
-            message = (
-                f"Foram identificados {nok_count} resultado(s) "
-                "fora dos limites especificados no conjunto analisado."
-            )
-
-            border = self.COLOR_NOK
-            background = self.COLOR_NOK_BG
-
-        elif (
-            evaluated_count > 0
-            and unknown_count == 0
-        ):
-            title = (
-                "RESULTADO DO LOTE: CONFORME"
-            )
-
-            message = (
-                "Todos os resultados avaliados encontram-se "
-                "dentro dos limites especificados."
-            )
-
-            border = self.COLOR_OK
-            background = self.COLOR_OK_BG
-
-        else:
-            return
-
-        height = self._estimate_text_height(
-            message,
-            minimum=56.0,
-            maximum=82.0,
-        )
-
-        page = layout.ensure_space(
-            height,
-            repeated_title="RESULTADO DO LOTE",
-        )
-
-        rect = layout.full_width_rect(
-            height
-        )
-
-        page.draw_rect(
-            rect,
-            color=border,
-            fill=background,
-            width=0.8,
-        )
-
-        page.insert_textbox(
-            fitz.Rect(
-                rect.x0 + 12,
-                rect.y0 + 8,
-                rect.x1 - 12,
-                rect.y0 + 23,
-            ),
-            title,
-            fontsize=7.5,
-            fontname="hebo",
-            color=border,
-        )
-
-        page.insert_textbox(
-            fitz.Rect(
-                rect.x0 + 12,
-                rect.y0 + 27,
-                rect.x1 - 12,
-                rect.y1 - 7,
-            ),
-            message,
-            fontsize=6.6,
-            fontname="helv",
-            color=self.COLOR_TEXT,
-            lineheight=1.12,
-        )
-
-        layout.advance(
-            height
+            total_height
+            + self.GAP
         )
 
     # =============================================================
@@ -918,7 +925,9 @@ class DimensionalBatchCoverPage:
         self,
         render_context: ReportRenderContext,
     ) -> int:
-        summary = render_context.overall_statistics
+        summary = (
+            render_context.overall_statistics
+        )
 
         unit_count = int(
             summary.get(
@@ -959,7 +968,7 @@ class DimensionalBatchCoverPage:
     ) -> list[float]:
         value_width = max(
             90.0,
-            available_width * 0.58,
+            available_width * 0.64,
         )
 
         heights: list[float] = []
@@ -990,39 +999,42 @@ class DimensionalBatchCoverPage:
                 min(
                     50.0,
                     max(
-                        31.0,
-                        17.0 + line_count * 9.0,
+                        30.0,
+                        16.0
+                        + line_count
+                        * 9.0,
                     ),
                 )
             )
 
         return heights
 
-    def _estimate_text_height(
+    def _estimate_caption_height(
         self,
-        text: Any,
-        *,
-        minimum: float,
-        maximum: float,
+        value: Any,
     ) -> float:
-        cleaned = self._clean_text(
-            text,
-            fallback="",
+        text = self._optional_text(
+            value
         )
 
-        line_count = max(
+        if not text:
+            return 0.0
+
+        lines = max(
             1,
             (
-                len(cleaned) + 92
+                len(text) + 65
             )
-            // 93,
+            // 66,
         )
 
-        return max(
-            minimum,
-            min(
-                maximum,
-                42.0 + line_count * 10.0,
+        return min(
+            42.0,
+            max(
+                24.0,
+                14.0
+                + lines
+                * 8.0,
             ),
         )
 
@@ -1083,5 +1095,6 @@ class DimensionalBatchCoverPage:
         )
 
         return (
-            cleaned or fallback
+            cleaned
+            or fallback
         )

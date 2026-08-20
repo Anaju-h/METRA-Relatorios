@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QTextEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -1015,34 +1016,100 @@ class ImagesPage(QWidget):
         # ---------------------------------------------------------
 
         caption_label = QLabel(
-            "Legenda"
+            "Legenda no relatório (opcional)"
         )
 
         caption_label.setObjectName(
             "dataLabel"
         )
 
-        caption_input = QLineEdit()
-
-        caption_input.setPlaceholderText(
-            "Ex.: Vista geral da peça do lote"
+        caption_help = QLabel(
+            (
+                "Este texto será exibido abaixo da imagem no PDF. "
+                "Se ficar vazio, a imagem será mostrada sem legenda."
+            )
         )
 
-        caption_input.setText(
+        caption_help.setObjectName(
+            "cardDescription"
+        )
+
+        caption_help.setWordWrap(
+            True
+        )
+
+        caption_input = QTextEdit()
+
+        caption_input.setPlaceholderText(
+            (
+                "Ex.: Peça posicionada na ZEISS PRISMO "
+                "durante a medição dimensional."
+            )
+        )
+
+        caption_input.setPlainText(
             image.caption
             or ""
         )
 
         caption_input.setMinimumHeight(
-            40
+            72
         )
+
+        caption_input.setMaximumHeight(
+            88
+        )
+
+        caption_preview = QLabel()
+
+        caption_preview.setObjectName(
+            "cardDescription"
+        )
+
+        caption_preview.setWordWrap(
+            True
+        )
+
+        caption_preview.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        def update_caption_preview() -> None:
+            value = " ".join(
+                caption_input
+                .toPlainText()
+                .split()
+            )
+
+            if value:
+                caption_preview.setText(
+                    f"Prévia da legenda: {value}"
+                )
+            else:
+                caption_preview.setText(
+                    "Sem legenda no relatório."
+                )
+
+        caption_input.textChanged.connect(
+            update_caption_preview
+        )
+
+        update_caption_preview()
 
         layout.addWidget(
             caption_label
         )
 
         layout.addWidget(
+            caption_help
+        )
+
+        layout.addWidget(
             caption_input
+        )
+
+        layout.addWidget(
+            caption_preview
         )
 
         # ---------------------------------------------------------
@@ -1056,7 +1123,7 @@ class ImagesPage(QWidget):
         )
 
         save_button = QPushButton(
-            "Salvar dados"
+            "Salvar tipo e legenda"
         )
 
         save_button.setObjectName(
@@ -1265,7 +1332,7 @@ class ImagesPage(QWidget):
         self,
         image: ProjectImage,
         type_input: QComboBox,
-        caption_input: QLineEdit,
+        caption_input: QTextEdit,
     ) -> None:
         if image.id is None:
             return
@@ -1281,7 +1348,7 @@ class ImagesPage(QWidget):
                     ),
 
                     caption=(
-                        caption_input.text()
+                        caption_input.toPlainText()
                     ),
                 )
             )
@@ -1311,8 +1378,8 @@ class ImagesPage(QWidget):
             self,
             "Imagem atualizada",
             (
-                "O tipo e a legenda da imagem "
-                "foram salvos."
+                "O tipo e a legenda da imagem foram salvos. "
+                "A legenda será usada abaixo da foto no relatório."
             ),
         )
 

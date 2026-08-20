@@ -16,6 +16,10 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QTextEdit,
+    QLineEdit,
+    QDialog,
+    QDialogButtonBox,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +27,9 @@ from PySide6.QtWidgets import (
 from models.project import Project
 from services.final_report_service import (
     FinalReportService,
+)
+from services.custom_report_content_service import (
+    CustomReportContentService,
 )
 from services.report_templates.template_catalog import (
     get_template_definition,
@@ -32,11 +39,11 @@ from ui.components.page_header import PageHeader
 
 class FinalReportPage(QWidget):
     """
-    Preparação e validação do relatório técnico.
+    Preparação do relatório técnico.
 
     Esta tela não salva o PDF definitivo. Ela reúne o contexto,
-    valida os dados, permite escolher as seções e solicita a geração
-    de uma pré-visualização temporária.
+    permite escolher as seções e solicita a geração de uma
+    pré-visualização temporária.
     """
 
     back_requested = Signal()
@@ -46,6 +53,7 @@ class FinalReportPage(QWidget):
     measurement_requested = Signal()
     images_requested = Signal()
     technical_control_requested = Signal()
+    custom_content_changed = Signal(list)
 
     # Mantido para compatibilidade com o MainWindow atual.
     # O MainWindow será refatorado para interpretar este sinal
@@ -60,6 +68,9 @@ class FinalReportPage(QWidget):
 
         self.current_project: Project | None = None
         self.service = FinalReportService()
+        self.custom_content_service = (
+            CustomReportContentService()
+        )
 
         self.current_context: dict[str, Any] = {}
 
@@ -67,6 +78,15 @@ class FinalReportPage(QWidget):
         self.section_frames: dict[str, QFrame] = {}
         self.section_badges: dict[str, QLabel] = {}
         self.section_meta_labels: dict[str, QLabel] = {}
+
+        # Conteúdo narrativo do template Personalizado.
+        # Cada item:
+        # {
+        #     "title": str,
+        #     "content": str,
+        #     "image_ids": list[int],
+        # }
+        self.custom_sections: list[dict[str, Any]] = []
 
         self.build_ui()
 
@@ -112,8 +132,8 @@ class FinalReportPage(QWidget):
         self.page_header = PageHeader(
             title="Relatório final",
             subtitle=(
-                "Valide o processo, selecione o conteúdo e gere uma "
-                "pré-visualização antes da aprovação e exportação."
+                "Selecione o conteúdo e gere uma pré-visualização "
+                "antes da aprovação e exportação."
             ),
             metadata="-",
             back_text="← Visão geral",
@@ -315,63 +335,73 @@ class FinalReportPage(QWidget):
         )
 
         # ---------------------------------------------------------
-        # VALIDAÇÃO
+        # CONTEÚDO TÉCNICO PERSONALIZADO
         # ---------------------------------------------------------
 
-        validation_card = QFrame()
-        validation_card.setObjectName("formCard")
+        self.custom_content_card = QFrame()
+        self.custom_content_card.setObjectName("formCard")
+        self.custom_content_card.setVisible(False)
 
-        validation_layout = QVBoxLayout(
-            validation_card
-        )
-        validation_layout.setContentsMargins(
-            20,
-            17,
-            20,
-            17,
-        )
-        validation_layout.setSpacing(14)
+        custom_layout = QVBoxLayout(self.custom_content_card)
+        custom_layout.setContentsMargins(20, 18, 20, 18)
+        custom_layout.setSpacing(12)
 
-        validation_title = QLabel(
-            "Conteúdo disponível"
-        )
-        validation_title.setObjectName(
-            "formSectionTitle"
-        )
+        custom_header = QHBoxLayout()
+        custom_header.setSpacing(12)
 
-        validation_description = QLabel(
-            "Os módulos disponíveis podem compor a pré-visualização. "
-            "Apenas a emissão oficial depende da aprovação do Controle Técnico."
-        )
-        validation_description.setObjectName(
-            "formSectionDescription"
-        )
-        validation_description.setWordWrap(True)
+        custom_header_text = QVBoxLayout()
+        custom_header_text.setSpacing(3)
 
-        self.validation_container = QWidget()
+        custom_title = QLabel("Conteúdo técnico personalizado")
+        custom_title.setObjectName("formSectionTitle")
 
-        self.validation_items_layout = QVBoxLayout(
-            self.validation_container
+        custom_description = QLabel(
+            "Monte a análise livremente. Cada bloco vira uma seção fluida "
+            "do relatório e pode conter método, análise, discussão, resultados, "
+            "limitações ou qualquer outro conteúdo técnico."
         )
-        self.validation_items_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
-        self.validation_items_layout.setSpacing(10)
+        custom_description.setObjectName("formSectionDescription")
+        custom_description.setWordWrap(True)
 
-        validation_layout.addWidget(validation_title)
-        validation_layout.addWidget(
-            validation_description
+        custom_header_text.addWidget(custom_title)
+        custom_header_text.addWidget(custom_description)
+
+        self.add_custom_section_button = QPushButton("＋ Adicionar seção")
+        self.add_custom_section_button.setObjectName("secondaryButton")
+        self.add_custom_section_button.setMinimumHeight(38)
+        self.add_custom_section_button.setCursor(
+            Qt.CursorShape.PointingHandCursor
         )
-        validation_layout.addWidget(
-            self.validation_container
+        self.add_custom_section_button.clicked.connect(
+            self.add_custom_section
         )
 
-        content_layout.addWidget(
-            validation_card
+        custom_header.addLayout(custom_header_text, 1)
+        custom_header.addWidget(
+            self.add_custom_section_button,
+            alignment=Qt.AlignmentFlag.AlignTop,
         )
+
+        custom_layout.addLayout(custom_header)
+
+        self.custom_sections_container = QWidget()
+        self.custom_sections_layout = QVBoxLayout(
+            self.custom_sections_container
+        )
+        self.custom_sections_layout.setContentsMargins(0, 0, 0, 0)
+        self.custom_sections_layout.setSpacing(8)
+
+        custom_layout.addWidget(self.custom_sections_container)
+
+        self.custom_empty_label = QLabel(
+            "Nenhuma seção técnica criada. Adicione a primeira seção para "
+            "construir a análise personalizada."
+        )
+        self.custom_empty_label.setObjectName("cardDescription")
+        self.custom_empty_label.setWordWrap(True)
+        self.custom_sections_layout.addWidget(self.custom_empty_label)
+
+        content_layout.addWidget(self.custom_content_card)
 
         # ---------------------------------------------------------
         # SELEÇÃO DE CONTEÚDO
@@ -385,7 +415,7 @@ class FinalReportPage(QWidget):
         sections_layout.setSpacing(12)
 
         sections_title = QLabel(
-            "Conteúdo disponível no processo"
+            "Conteúdo do relatório"
         )
         sections_title.setObjectName(
             "formSectionTitle"
@@ -580,7 +610,7 @@ class FinalReportPage(QWidget):
         )
 
         self.preview_description = QLabel(
-            "O resumo será atualizado após a validação do processo."
+            "O resumo será atualizado conforme as seções selecionadas."
         )
         self.preview_description.setObjectName(
             "cardDescription"
@@ -879,131 +909,6 @@ class FinalReportPage(QWidget):
 
         return button
 
-    def create_validation_row(
-        self,
-        item: dict[str, Any],
-    ) -> QFrame:
-        row = QFrame()
-        row.setObjectName("documentListItem")
-
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(
-            16,
-            13,
-            16,
-            13,
-        )
-        layout.setSpacing(14)
-
-        status = item["status"]
-        required = bool(
-            item.get("required", False)
-        )
-
-        if status == "complete":
-            symbol = "✓"
-            status_text = "Concluído"
-            badge_name = "statusBadgeSuccess"
-        else:
-            symbol = "!"
-            status_text = (
-                "Obrigatório"
-                if required
-                else "Opcional"
-            )
-            badge_name = "statusBadgeWarning"
-
-        symbol_label = QLabel(symbol)
-        symbol_label.setObjectName("documentOrder")
-        symbol_label.setAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-        symbol_label.setFixedSize(40, 40)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(3)
-
-        title = QLabel(item["title"])
-        title.setObjectName("cardTitle")
-
-        description = QLabel(item["message"])
-        description.setObjectName(
-            "cardDescription"
-        )
-        description.setWordWrap(True)
-
-        text_layout.addWidget(title)
-        text_layout.addWidget(description)
-
-        status_label = QLabel(status_text)
-        status_label.setObjectName(badge_name)
-
-        action_button = self.create_validation_action(
-            item["key"]
-        )
-
-        layout.addWidget(symbol_label)
-        layout.addLayout(text_layout, 1)
-        layout.addWidget(
-            status_label,
-            alignment=Qt.AlignmentFlag.AlignTop,
-        )
-
-        if action_button is not None:
-            layout.addWidget(
-                action_button,
-                alignment=Qt.AlignmentFlag.AlignTop,
-            )
-
-        return row
-
-    def create_validation_action(
-        self,
-        key: str,
-    ) -> QPushButton | None:
-        actions = {
-            "documents": (
-                "Abrir documentos",
-                self.documents_requested.emit,
-            ),
-            "characteristics": (
-                "Ver características",
-                self.characteristics_requested.emit,
-            ),
-            "measurement": (
-                "Completar medição",
-                self.measurement_requested.emit,
-            ),
-            "images": (
-                "Abrir imagens",
-                self.images_requested.emit,
-            ),
-            "primary_image": (
-                "Selecionar imagem",
-                self.images_requested.emit,
-            ),
-            "technical_control": (
-                "Abrir controle",
-                self.technical_control_requested.emit,
-            ),
-        }
-
-        action = actions.get(key)
-
-        if action is None:
-            return None
-
-        text, callback = action
-
-        button = QPushButton(text)
-        button.setObjectName("cardButton")
-        button.setCursor(
-            Qt.CursorShape.PointingHandCursor
-        )
-        button.clicked.connect(callback)
-
-        return button
-
     # =============================================================
     # PROJETO E CONTEXTO
     # =============================================================
@@ -1029,6 +934,10 @@ class FinalReportPage(QWidget):
         )
         self.output_value.setText(
             "PDF temporário para conferência"
+        )
+
+        self.custom_content_card.setVisible(
+            self._is_custom_template()
         )
 
         self.load_context()
@@ -1063,9 +972,38 @@ class FinalReportPage(QWidget):
 
         self.current_context = context
 
+        if (
+            self._is_custom_template()
+            and self.current_project is not None
+            and self.current_project.id is not None
+        ):
+            try:
+                self.custom_sections = (
+                    self.custom_content_service
+                    .get_sections(
+                        self.current_project.id
+                    )
+                )
+            except Exception as error:
+                QMessageBox.warning(
+                    self,
+                    "Conteúdo personalizado",
+                    (
+                        "Não foi possível carregar as seções "
+                        f"personalizadas.\n\nDetalhes: {error}"
+                    ),
+                )
+                self.custom_sections = []
+
+            context["custom_sections"] = [
+                dict(item)
+                for item in self.custom_sections
+            ]
+
+            self.refresh_custom_sections_ui()
+
         self.populate_scope(context)
         self.populate_summary(context)
-        self.populate_validation(context)
         self.populate_sections(context)
         self.populate_general_status(context)
         self.populate_preview_summary(context)
@@ -1138,19 +1076,6 @@ class FinalReportPage(QWidget):
         self.images_value.setText(
             str(images["total"])
         )
-
-    def populate_validation(
-        self,
-        context: dict[str, Any],
-    ) -> None:
-        self.clear_layout(
-            self.validation_items_layout
-        )
-
-        for item in context["validation_items"]:
-            self.validation_items_layout.addWidget(
-                self.create_validation_row(item)
-            )
 
     def populate_sections(
         self,
@@ -1526,10 +1451,64 @@ class FinalReportPage(QWidget):
             )
             return
 
+        context_for_render = dict(self.current_context)
+
+        if self._is_custom_template():
+            context_for_render["custom_sections"] = [
+                {
+                    "title": str(
+                        item.get(
+                            "title",
+                            "",
+                        )
+                        or ""
+                    ).strip(),
+                    "content": str(
+                        item.get(
+                            "content",
+                            "",
+                        )
+                        or ""
+                    ).strip(),
+                    "image_ids": list(
+                        item.get(
+                            "image_ids",
+                            [],
+                        )
+                        or []
+                    ),
+                }
+                for item in self.custom_sections
+                if (
+                    str(
+                        item.get(
+                            "title",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    or str(
+                        item.get(
+                            "content",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    or item.get(
+                        "image_ids",
+                        [],
+                    )
+                )
+            ]
+
         payload = {
             "project": self.current_project,
-            "context": self.current_context,
+            "context": context_for_render,
             "sections": selected_sections,
+            "custom_sections": context_for_render.get(
+                "custom_sections",
+                [],
+            ),
         }
 
         self.generate_requested.emit(payload)
@@ -1553,6 +1532,9 @@ class FinalReportPage(QWidget):
         self.back_action_button.setEnabled(
             not generating
         )
+        self.add_custom_section_button.setEnabled(
+            not generating
+        )
         self.generate_button.setText(
             (
                 "Gerando pré-visualização..."
@@ -1560,6 +1542,576 @@ class FinalReportPage(QWidget):
                 else "Gerar pré-visualização"
             )
         )
+
+    # =============================================================
+    # EDITOR DO TEMPLATE PERSONALIZADO
+    # =============================================================
+
+    def _is_custom_template(self) -> bool:
+        if self.current_project is None:
+            return False
+
+        code = str(
+            self.current_project.template or ""
+        ).strip().lower()
+
+        return code in {
+            "custom",
+            "personalizado",
+            "personalized",
+        }
+
+    def add_custom_section(self) -> None:
+        result = self._open_custom_section_dialog(
+            title="Nova seção técnica",
+            initial_title="",
+            initial_content="",
+            initial_image_ids=[],
+        )
+
+        if result is None:
+            return
+
+        (
+            section_title,
+            section_content,
+            image_ids,
+        ) = result
+
+        self.custom_sections.append(
+            {
+                "title": section_title,
+                "content": section_content,
+                "image_ids": image_ids,
+            }
+        )
+        self._custom_content_updated()
+
+    def edit_custom_section(
+        self,
+        index: int,
+    ) -> None:
+        if not (
+            0 <= index < len(self.custom_sections)
+        ):
+            return
+
+        item = self.custom_sections[index]
+
+        result = self._open_custom_section_dialog(
+            title="Editar seção técnica",
+            initial_title=item.get("title", ""),
+            initial_content=item.get("content", ""),
+            initial_image_ids=item.get(
+                "image_ids",
+                [],
+            ),
+        )
+
+        if result is None:
+            return
+
+        (
+            section_title,
+            section_content,
+            image_ids,
+        ) = result
+
+        self.custom_sections[index] = {
+            "title": section_title,
+            "content": section_content,
+            "image_ids": image_ids,
+        }
+        self._custom_content_updated()
+
+    def remove_custom_section(
+        self,
+        index: int,
+    ) -> None:
+        if not (
+            0 <= index < len(self.custom_sections)
+        ):
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Remover seção",
+            "Deseja remover esta seção do relatório personalizado?",
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        self.custom_sections.pop(index)
+        self._custom_content_updated()
+
+    def move_custom_section(
+        self,
+        index: int,
+        direction: int,
+    ) -> None:
+        target = index + direction
+
+        if (
+            index < 0
+            or target < 0
+            or index >= len(self.custom_sections)
+            or target >= len(self.custom_sections)
+        ):
+            return
+
+        self.custom_sections[index], self.custom_sections[target] = (
+            self.custom_sections[target],
+            self.custom_sections[index],
+        )
+        self._custom_content_updated()
+
+    def _custom_content_updated(self) -> None:
+        if (
+            self.current_project is None
+            or self.current_project.id is None
+        ):
+            return
+
+        try:
+            self.custom_sections = (
+                self.custom_content_service
+                .save_sections(
+                    project_id=self.current_project.id,
+                    sections=self.custom_sections,
+                )
+            )
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Erro ao salvar conteúdo",
+                (
+                    "As seções personalizadas não puderam "
+                    f"ser salvas.\n\nDetalhes: {error}"
+                ),
+            )
+            return
+
+        self.current_context["custom_sections"] = [
+            dict(item)
+            for item in self.custom_sections
+        ]
+
+        self.refresh_custom_sections_ui()
+
+        self.custom_content_changed.emit(
+            [
+                dict(item)
+                for item in self.custom_sections
+            ]
+        )
+
+        # A alteração técnica pode invalidar uma aprovação anterior.
+        # Recarrega o contexto para refletir imediatamente esse estado.
+        self.load_context()
+
+    def refresh_custom_sections_ui(self) -> None:
+        self.clear_layout(
+            self.custom_sections_layout
+        )
+
+        if not self.custom_sections:
+            self.custom_empty_label = QLabel(
+                "Nenhuma seção técnica criada. Adicione a primeira seção "
+                "para construir a análise personalizada."
+            )
+            self.custom_empty_label.setObjectName(
+                "cardDescription"
+            )
+            self.custom_empty_label.setWordWrap(True)
+            self.custom_sections_layout.addWidget(
+                self.custom_empty_label
+            )
+            return
+
+        for index, item in enumerate(
+            self.custom_sections
+        ):
+            frame = QFrame()
+            frame.setObjectName(
+                "finalReportSectionRow"
+            )
+
+            row = QHBoxLayout(frame)
+            row.setContentsMargins(14, 11, 14, 11)
+            row.setSpacing(10)
+
+            order = QLabel(str(index + 1))
+            order.setObjectName(
+                "finalReportSectionIcon"
+            )
+            order.setAlignment(
+                Qt.AlignmentFlag.AlignCenter
+            )
+            order.setFixedSize(34, 34)
+
+            text_layout = QVBoxLayout()
+            text_layout.setSpacing(3)
+
+            title = QLabel(
+                item.get("title", "")
+                or "Seção sem título"
+            )
+            title.setObjectName(
+                "finalReportSectionTitle"
+            )
+
+            content = self._compact_preview_text(
+                item.get("content", "")
+            )
+            image_count = len(
+                item.get(
+                    "image_ids",
+                    [],
+                )
+                or []
+            )
+
+            preview_parts = []
+
+            if content:
+                preview_parts.append(
+                    content
+                )
+
+            if image_count:
+                preview_parts.append(
+                    (
+                        f"{image_count} imagem(ns) "
+                        "vinculada(s) à seção"
+                    )
+                )
+
+            description = QLabel(
+                " · ".join(preview_parts)
+                or "Seção sem conteúdo textual."
+            )
+            description.setObjectName(
+                "finalReportSectionDescription"
+            )
+            description.setWordWrap(True)
+
+            text_layout.addWidget(title)
+            text_layout.addWidget(description)
+
+            up_button = QPushButton("↑")
+            down_button = QPushButton("↓")
+            edit_button = QPushButton("Editar")
+            remove_button = QPushButton("Remover")
+
+            for button in (
+                up_button,
+                down_button,
+                edit_button,
+                remove_button,
+            ):
+                button.setObjectName(
+                    "finalReportSectionAction"
+                )
+                button.setCursor(
+                    Qt.CursorShape.PointingHandCursor
+                )
+
+            up_button.setEnabled(index > 0)
+            down_button.setEnabled(
+                index < len(self.custom_sections) - 1
+            )
+
+            up_button.clicked.connect(
+                lambda _=False, i=index:
+                self.move_custom_section(i, -1)
+            )
+            down_button.clicked.connect(
+                lambda _=False, i=index:
+                self.move_custom_section(i, 1)
+            )
+            edit_button.clicked.connect(
+                lambda _=False, i=index:
+                self.edit_custom_section(i)
+            )
+            remove_button.clicked.connect(
+                lambda _=False, i=index:
+                self.remove_custom_section(i)
+            )
+
+            row.addWidget(order)
+            row.addLayout(text_layout, 1)
+            row.addWidget(up_button)
+            row.addWidget(down_button)
+            row.addWidget(edit_button)
+            row.addWidget(remove_button)
+
+            self.custom_sections_layout.addWidget(
+                frame
+            )
+
+    def _open_custom_section_dialog(
+        self,
+        *,
+        title: str,
+        initial_title: str,
+        initial_content: str,
+        initial_image_ids: list[int],
+    ) -> tuple[str, str, list[int]] | None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        dialog.resize(760, 650)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+
+        title_label = QLabel("Título da seção")
+        title_label.setObjectName("dataLabel")
+
+        title_input = QLineEdit()
+        title_input.setObjectName("formInput")
+        title_input.setPlaceholderText(
+            "Ex.: Discussão do mecanismo de falha"
+        )
+        title_input.setText(initial_title)
+
+        content_label = QLabel(
+            "Análise / conteúdo técnico"
+        )
+        content_label.setObjectName("dataLabel")
+
+        content_input = QTextEdit()
+        content_input.setObjectName("formTextArea")
+        content_input.setPlaceholderText(
+            "Descreva método, evidências, interpretação, resultados, "
+            "limitações ou demais informações técnicas..."
+        )
+        content_input.setPlainText(initial_content)
+        content_input.setMinimumHeight(250)
+
+        layout.addWidget(title_label)
+        layout.addWidget(title_input)
+        layout.addWidget(content_label)
+        layout.addWidget(content_input, 1)
+
+        image_checkboxes: list[
+            tuple[int, QCheckBox]
+        ] = []
+
+        images = self.current_context.get(
+            "images",
+            [],
+        )
+
+        usable_images = [
+            image
+            for image in images
+            if getattr(
+                image,
+                "id",
+                None,
+            ) is not None
+        ]
+
+        if usable_images:
+            images_label = QLabel(
+                "Evidências vinculadas a esta seção"
+            )
+            images_label.setObjectName(
+                "dataLabel"
+            )
+
+            images_hint = QLabel(
+                "Marque as imagens que devem aparecer logo após "
+                "o texto desta seção. A mesma imagem pode ser usada "
+                "em mais de uma seção quando tecnicamente necessário."
+            )
+            images_hint.setObjectName(
+                "cardDescription"
+            )
+            images_hint.setWordWrap(True)
+
+            layout.addWidget(images_label)
+            layout.addWidget(images_hint)
+
+            images_box = QFrame()
+            images_box.setObjectName(
+                "finalReportContentCard"
+            )
+
+            images_layout = QVBoxLayout(
+                images_box
+            )
+            images_layout.setContentsMargins(
+                12,
+                10,
+                12,
+                10,
+            )
+            images_layout.setSpacing(6)
+
+            selected_ids = {
+                int(value)
+                for value in initial_image_ids
+                if str(value).isdigit()
+            }
+
+            for image in usable_images:
+                image_id = int(
+                    image.id
+                )
+
+                caption = str(
+                    getattr(
+                        image,
+                        "caption",
+                        "",
+                    )
+                    or ""
+                ).strip()
+
+                image_type = str(
+                    getattr(
+                        image,
+                        "image_type",
+                        "",
+                    )
+                    or ""
+                ).strip()
+
+                file_name = str(
+                    getattr(
+                        image,
+                        "file_name",
+                        "",
+                    )
+                    or ""
+                ).strip()
+
+                label = (
+                    caption
+                    or file_name
+                    or f"Imagem {image_id}"
+                )
+
+                if image_type:
+                    label = (
+                        f"{image_type} · {label}"
+                    )
+
+                checkbox = QCheckBox(
+                    label
+                )
+                checkbox.setChecked(
+                    image_id in selected_ids
+                )
+                checkbox.setCursor(
+                    Qt.CursorShape.PointingHandCursor
+                )
+
+                images_layout.addWidget(
+                    checkbox
+                )
+
+                image_checkboxes.append(
+                    (
+                        image_id,
+                        checkbox,
+                    )
+                )
+
+            layout.addWidget(images_box)
+
+        hint = QLabel(
+            "O METRA não cria a interpretação por conta própria: "
+            "o texto registrado aqui é a análise técnica do responsável."
+        )
+        hint.setObjectName("cardDescription")
+        hint.setWordWrap(True)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+
+        save_button = buttons.button(
+            QDialogButtonBox.StandardButton.Save
+        )
+        if save_button is not None:
+            save_button.setText("Salvar seção")
+
+        cancel_button = buttons.button(
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        if cancel_button is not None:
+            cancel_button.setText("Cancelar")
+
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+
+        layout.addWidget(hint)
+        layout.addWidget(buttons)
+
+        if (
+            dialog.exec()
+            != QDialog.DialogCode.Accepted
+        ):
+            return None
+
+        section_title = (
+            title_input.text().strip()
+        )
+        section_content = (
+            content_input
+            .toPlainText()
+            .strip()
+        )
+
+        image_ids = [
+            image_id
+            for image_id, checkbox
+            in image_checkboxes
+            if checkbox.isChecked()
+        ]
+
+        if (
+            not section_title
+            and not section_content
+            and not image_ids
+        ):
+            QMessageBox.warning(
+                self,
+                "Seção vazia",
+                (
+                    "Informe um título, um conteúdo técnico "
+                    "ou vincule pelo menos uma imagem."
+                ),
+            )
+            return None
+
+        return (
+            section_title,
+            section_content,
+            image_ids,
+        )
+
+    def _compact_preview_text(
+        self,
+        value: str,
+    ) -> str:
+        compact = " ".join(
+            str(value or "").split()
+        )
+
+        if len(compact) <= 180:
+            return compact
+
+        return compact[:177].rstrip() + "..."
 
     # =============================================================
     # UTILITÁRIOS

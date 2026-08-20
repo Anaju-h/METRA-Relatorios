@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 import ast
+import re
 
 import fitz
 
@@ -87,25 +88,31 @@ class DimensionalIndividualMeasurementPage:
         layout: ReportLayoutEngine,
         render_context: ReportRenderContext,
     ) -> None:
-        self._render_measurement_information(
-            layout=layout,
-            render_context=render_context,
-        )
+        # Regra METRA: uma seção só aparece quando foi selecionada
+        # e existe informação real para ser renderizada.
+        if render_context.section_enabled(
+            "measurement"
+        ):
+            self._render_measurement_information(
+                layout=layout,
+                render_context=render_context,
+            )
 
-        self._render_source_documents(
-            layout=layout,
-            render_context=render_context,
-        )
+        if render_context.section_enabled(
+            "documents"
+        ):
+            self._render_source_documents(
+                layout=layout,
+                render_context=render_context,
+            )
 
-        self._render_technical_images(
-            layout=layout,
-            render_context=render_context,
-        )
-
-        self._render_observations(
-            layout=layout,
-            render_context=render_context,
-        )
+        if render_context.section_enabled(
+            "observations"
+        ):
+            self._render_observations(
+                layout=layout,
+                render_context=render_context,
+            )
 
     # =============================================================
     # MEDIÇÃO
@@ -149,10 +156,9 @@ class DimensionalIndividualMeasurementPage:
             ),
             (
                 "Equipamento e configuração",
-                getattr(
-                    measurement,
-                    "machine_details",
-                    None,
+                self._format_equipment_configuration(
+                    render_context=render_context,
+                    measurement=measurement,
                 ),
             ),
             (
@@ -782,7 +788,6 @@ class DimensionalIndividualMeasurementPage:
         render_context: ReportRenderContext,
     ) -> None:
         measurement = render_context.measurement
-        control = render_context.technical_control
 
         notes = []
 
@@ -803,23 +808,9 @@ class DimensionalIndividualMeasurementPage:
                     )
                 )
 
-        if control is not None:
-            review_notes = getattr(
-                control,
-                "review_notes",
-                None,
-            )
-
-            if self._has_text(
-                review_notes
-            ):
-                notes.append(
-                    (
-                        "Observações da revisão",
-                        review_notes,
-                    )
-                )
-
+        # Notas internas do Controle Técnico, histórico de revisão,
+        # invalidações de aprovação e mensagens de auditoria não são
+        # conteúdo destinado ao cliente e não entram no PDF.
         if not notes:
             return
 
@@ -847,7 +838,7 @@ class DimensionalIndividualMeasurementPage:
         self._draw_section_title(
             page=page,
             layout=layout,
-            title="7. OBSERVAÇÕES TÉCNICAS",
+            title="6. OBSERVAÇÕES TÉCNICAS",
         )
 
         layout.advance(
@@ -1127,6 +1118,133 @@ class DimensionalIndividualMeasurementPage:
         return max(
             60.0,
             42.0 + lines * 9.5,
+        )
+
+    def _format_equipment_configuration(
+        self,
+        *,
+        render_context: ReportRenderContext,
+        measurement: Any,
+    ) -> str | None:
+        """
+        Prioriza o equipamento cadastrado no processo e limpa detalhes
+        extraídos do relatório de origem para evitar nomes de rotina,
+        duplicações e textos como "Run Todas Caracteristicas".
+        """
+        project = getattr(
+            render_context,
+            "project",
+            None,
+        )
+
+        project_equipment = self._optional_text(
+            getattr(
+                project,
+                "equipment",
+                None,
+            )
+        )
+
+        raw_details = self._optional_text(
+            getattr(
+                measurement,
+                "machine_details",
+                None,
+            )
+        )
+
+        if not raw_details:
+            return project_equipment
+
+        cleaned = raw_details
+
+        # Remove nomes de execução/rotina que não são parte do equipamento.
+        cleaned = re.sub(
+            r"\bRun\b.*?(?=(?:identifica[cç][aã]o|n[uú]mero|CALYPSO|$))",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+
+        # Normaliza separadores e caracteres vindos de extrações antigas.
+        cleaned = cleaned.replace(
+            " ? ",
+            " · ",
+        )
+        cleaned = re.sub(
+            r"\s*[·|]\s*",
+            " · ",
+            cleaned,
+        )
+        cleaned = re.sub(
+            r"\s+",
+            " ",
+            cleaned,
+        ).strip(" ·|")
+
+        # Captura identificação/número da máquina sem duplicá-lo.
+        machine_id_match = re.search(
+            r"(?:identifica[cç][aã]o|n[uú]mero(?:\s+da\s+MMC)?)\s*[:\-]?\s*([A-Za-z0-9._-]+)",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        machine_id = (
+            machine_id_match.group(1)
+            if machine_id_match
+            else None
+        )
+
+        # Captura versão do CALYPSO quando estiver presente.
+        version_match = re.search(
+            r"CALYPSO.*?vers[aã]o\s*[:\-]?\s*([0-9.]+)",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        software_version = (
+            version_match.group(1)
+            if version_match
+            else None
+        )
+
+        parts = []
+
+        if project_equipment:
+            parts.append(
+                project_equipment
+            )
+
+        if machine_id:
+            parts.append(
+                f"Identificação: {machine_id}"
+            )
+
+        if software_version:
+            parts.append(
+                f"CALYPSO {software_version}"
+            )
+
+        if parts:
+            return " · ".join(
+                dict.fromkeys(parts)
+            )
+
+        # Fallback: usa apenas a primeira identificação coerente,
+        # evitando expor todo o texto bruto extraído.
+        first_part = cleaned.split(
+            " · "
+        )[0].strip()
+
+        if (
+            project_equipment
+            and project_equipment.lower()
+            in first_part.lower()
+        ):
+            return project_equipment
+
+        return (
+            project_equipment
+            or first_part
+            or None
         )
 
     def _format_field_value(
