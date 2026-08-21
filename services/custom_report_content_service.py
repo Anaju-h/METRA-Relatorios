@@ -12,11 +12,12 @@ from repositories.technical_control_repository import (
 
 class CustomReportContentService:
     """
-    Regras do conteúdo narrativo do template Personalizado.
+    Regras das seções técnicas adicionais do relatório.
 
-    O conteúdo é persistido imediatamente e qualquer alteração
-    invalida uma aprovação técnica anterior, pois modifica o
-    documento que será oficialmente emitido.
+    As seções podem ser utilizadas por qualquer template. O conteúdo
+    é persistido imediatamente e qualquer alteração invalida uma
+    aprovação técnica anterior, pois modifica o documento que será
+    oficialmente emitido.
     """
 
     def __init__(self) -> None:
@@ -61,7 +62,7 @@ class CustomReportContentService:
         self.technical_control_repository.invalidate_approval(
             project_id,
             reason=(
-                "O conteúdo técnico do relatório personalizado "
+                "O conteúdo técnico adicional do relatório "
                 "foi alterado."
             ),
         )

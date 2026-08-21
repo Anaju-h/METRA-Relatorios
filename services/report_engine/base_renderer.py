@@ -11,6 +11,9 @@ from services.report_engine.components.institutional_header import (
 from services.report_engine.components.page_footer import (
     PageFooter,
 )
+from services.report_engine.components.additional_sections_page import (
+    AdditionalSectionsPage,
+)
 from services.report_engine.components.traceability_page import (
     TraceabilityReportPage,
 )
@@ -56,6 +59,10 @@ class BaseReportRenderer(ABC):
 
         self.footer = PageFooter()
 
+        self.additional_sections_page = (
+            AdditionalSectionsPage()
+        )
+
         self.traceability_page = (
             TraceabilityReportPage()
         )
@@ -89,18 +96,18 @@ class BaseReportRenderer(ABC):
 
         self.layout.new_page()
 
-        # A rastreabilidade deve aparecer antes do encerramento
-        # institucional do relatório. Como cada template possui sua
-        # própria página de Controle Técnico, interceptamos a chamada
-        # dessa página de forma centralizada.
+        # As seções adicionais e a rastreabilidade devem aparecer
+        # antes do encerramento institucional do relatório.
         #
-        # Resultado para TODOS os templates:
-        # conteúdo técnico
+        # Ordem global para TODOS os templates:
+        # conteúdo técnico padrão
+        # -> seções adicionais
         # -> históricos opcionais
-        # -> conclusão / controle técnico / assinaturas
+        # -> controle técnico / assinaturas
         #
-        # Se o Controle Técnico não estiver selecionado, os históricos
-        # continuam sendo renderizados ao final do conteúdo técnico.
+        # Se o Controle Técnico não estiver selecionado, os conteúdos
+        # complementares continuam sendo renderizados ao final.
+        additional_sections_rendered = False
         traceability_rendered = False
 
         technical_control_page = getattr(
@@ -122,11 +129,19 @@ class BaseReportRenderer(ABC):
                 technical_control_page.render
             )
 
-            def render_technical_control_after_traceability(
+            def render_technical_control_after_complements(
                 *args,
                 **kwargs,
             ):
+                nonlocal additional_sections_rendered
                 nonlocal traceability_rendered
+
+                if (
+                    not additional_sections_rendered
+                    and self._has_additional_sections()
+                ):
+                    self._render_additional_sections()
+                    additional_sections_rendered = True
 
                 if (
                     not traceability_rendered
@@ -141,11 +156,18 @@ class BaseReportRenderer(ABC):
                 )
 
             technical_control_page.render = (
-                render_technical_control_after_traceability
+                render_technical_control_after_complements
             )
 
         try:
             self.render_document()
+
+            if (
+                not additional_sections_rendered
+                and self._has_additional_sections()
+            ):
+                self._render_additional_sections()
+                additional_sections_rendered = True
 
             if (
                 not traceability_rendered
@@ -196,6 +218,34 @@ class BaseReportRenderer(ABC):
         self,
     ) -> None:
         raise NotImplementedError
+
+    # =============================================================
+    # SEÇÕES ADICIONAIS
+    # =============================================================
+
+    def _has_additional_sections(
+        self,
+    ) -> bool:
+        if self.render_context is None:
+            return False
+
+        return self.additional_sections_page.has_content(
+            self.render_context
+        )
+
+    def _render_additional_sections(
+        self,
+    ) -> None:
+        if (
+            self.layout is None
+            or self.render_context is None
+        ):
+            return
+
+        self.additional_sections_page.render(
+            layout=self.layout,
+            render_context=self.render_context,
+        )
 
     # =============================================================
     # RASTREABILIDADE OPCIONAL

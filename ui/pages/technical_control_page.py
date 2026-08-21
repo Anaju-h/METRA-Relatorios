@@ -255,12 +255,8 @@ class TechnicalControlPage(QWidget):
             QDateTimeEdit()
         )
 
-        self.prepared_at_input.setCalendarPopup(
-            True
-        )
-
-        self.prepared_at_input.setDisplayFormat(
-            "dd/MM/yyyy HH:mm"
+        self._configure_datetime_input(
+            self.prepared_at_input
         )
 
         preparation_grid.addWidget(
@@ -381,12 +377,8 @@ class TechnicalControlPage(QWidget):
             QDateTimeEdit()
         )
 
-        self.reviewed_at_input.setCalendarPopup(
-            True
-        )
-
-        self.reviewed_at_input.setDisplayFormat(
-            "dd/MM/yyyy HH:mm"
+        self._configure_datetime_input(
+            self.reviewed_at_input
         )
 
         review_grid.addWidget(
@@ -535,6 +527,156 @@ class TechnicalControlPage(QWidget):
             self.scroll_area
         )
 
+    # =============================================================
+    # CAMPOS DE DATA E CALENDÁRIO
+    # =============================================================
+
+    def _configure_datetime_input(
+        self,
+        date_input: QDateTimeEdit,
+    ) -> None:
+        date_input.setCalendarPopup(
+            True
+        )
+
+        date_input.setDisplayFormat(
+            "dd/MM/yyyy HH:mm"
+        )
+
+        # Evita o valor padrão 01/01/2000 do QDateTimeEdit.
+        # Quando ainda não existe data persistida, o campo inicia
+        # com a data e hora atuais.
+        date_input.setDateTime(
+            QDateTime.currentDateTime()
+        )
+
+        date_input.setStyleSheet(
+            """
+            QDateTimeEdit {
+                background-color: #FFFFFF;
+                color: #071F3D;
+                border: 1px solid #C7D5E3;
+                border-radius: 6px;
+                padding: 8px 10px;
+                min-height: 24px;
+            }
+
+            QDateTimeEdit:hover {
+                border-color: #9DB7CC;
+            }
+
+            QDateTimeEdit:focus {
+                border: 1px solid #0877C9;
+            }
+
+            QDateTimeEdit::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 30px;
+                border: none;
+                background: transparent;
+            }
+            """
+        )
+
+        calendar = (
+            date_input.calendarWidget()
+        )
+
+        calendar.setGridVisible(
+            False
+        )
+
+        calendar.setStyleSheet(
+            """
+            QCalendarWidget {
+                background-color: #FFFFFF;
+                color: #071F3D;
+            }
+
+            QCalendarWidget QWidget {
+                background-color: #FFFFFF;
+                color: #071F3D;
+            }
+
+            QCalendarWidget QWidget#qt_calendar_navigationbar {
+                background-color: #0877C9;
+                min-height: 38px;
+            }
+
+            QCalendarWidget QToolButton {
+                background-color: transparent;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 8px;
+                font-weight: 600;
+            }
+
+            QCalendarWidget QToolButton:hover {
+                background-color: rgba(255, 255, 255, 0.14);
+            }
+
+            QCalendarWidget QToolButton:pressed {
+                background-color: rgba(255, 255, 255, 0.24);
+            }
+
+            QCalendarWidget QToolButton#qt_calendar_prevmonth,
+            QCalendarWidget QToolButton#qt_calendar_nextmonth {
+                color: #FFFFFF;
+                font-size: 16px;
+                font-weight: 700;
+            }
+
+            QCalendarWidget QMenu {
+                background-color: #FFFFFF;
+                color: #071F3D;
+                border: 1px solid #C7D5E3;
+            }
+
+            QCalendarWidget QMenu::item {
+                background-color: #FFFFFF;
+                color: #071F3D;
+                padding: 5px 14px;
+            }
+
+            QCalendarWidget QMenu::item:selected {
+                background-color: #EAF4FB;
+                color: #075EA8;
+            }
+
+            QCalendarWidget QSpinBox {
+                background-color: #FFFFFF;
+                color: #071F3D;
+                border: 1px solid #C7D5E3;
+                border-radius: 4px;
+                padding: 4px 6px;
+                selection-background-color: #0877C9;
+                selection-color: #FFFFFF;
+            }
+
+            QCalendarWidget QAbstractItemView {
+                background-color: #FFFFFF;
+                alternate-background-color: #FFFFFF;
+                color: #071F3D;
+                selection-background-color: #0877C9;
+                selection-color: #FFFFFF;
+                outline: none;
+                border: none;
+            }
+
+            QCalendarWidget QAbstractItemView:enabled {
+                background-color: #FFFFFF;
+                color: #071F3D;
+            }
+
+            QCalendarWidget QAbstractItemView:disabled {
+                background-color: #FFFFFF;
+                color: #A7B3BE;
+            }
+            """
+        )
+
     # PROJETO
 
     def set_project(
@@ -586,27 +728,49 @@ class TechnicalControlPage(QWidget):
             control.review_notes or ""
         )
 
-        if control.prepared_at:
-            value = QDateTime.fromString(
-                control.prepared_at,
-                Qt.DateFormat.ISODate,
-            )
+        self._set_datetime_from_value_or_now(
+            self.prepared_at_input,
+            control.prepared_at,
+        )
 
-            if value.isValid():
-                self.prepared_at_input.setDateTime(
-                    value
-                )
+        self._set_datetime_from_value_or_now(
+            self.reviewed_at_input,
+            control.reviewed_at,
+        )
 
-        if control.reviewed_at:
-            value = QDateTime.fromString(
-                control.reviewed_at,
-                Qt.DateFormat.ISODate,
-            )
+    # DATA/HORA PERSISTIDA
 
-            if value.isValid():
-                self.reviewed_at_input.setDateTime(
-                    value
-                )
+    def _set_datetime_from_value_or_now(
+        self,
+        date_input: QDateTimeEdit,
+        stored_value,
+    ) -> None:
+        """
+        Carrega uma data persistida válida ou usa o momento atual.
+
+        O QDateTimeEdit utiliza 01/01/2000 como valor padrão quando
+        nenhum valor é definido. Registros antigos que tenham salvo
+        esse placeholder também são tratados como não informados.
+        """
+        now = QDateTime.currentDateTime()
+
+        if not stored_value:
+            date_input.setDateTime(now)
+            return
+
+        value = QDateTime.fromString(
+            str(stored_value),
+            Qt.DateFormat.ISODate,
+        )
+
+        if (
+            value.isValid()
+            and value.date().year() > 2000
+        ):
+            date_input.setDateTime(value)
+            return
+
+        date_input.setDateTime(now)
 
     # LIMPAR
 

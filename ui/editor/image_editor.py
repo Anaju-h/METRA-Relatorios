@@ -649,13 +649,45 @@ class ImageEditor(QWidget):
             "−"
         )
 
+        # Estilo local para garantir que o símbolo de zoom permaneça
+        # visível independentemente das regras globais do app.qss.
         zoom_out_button.setObjectName(
-            "secondaryButton"
+            "zoomButton"
         )
 
         zoom_out_button.setFixedSize(
             42,
             38,
+        )
+
+        zoom_out_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #005AA9;
+                border: 1px solid #B9CCE0;
+                border-radius: 7px;
+                font-family: "Segoe UI";
+                font-size: 18px;
+                font-weight: 600;
+                padding: 0px;
+            }
+
+            QPushButton:hover {
+                background-color: #EEF6FC;
+                border-color: #0077C8;
+            }
+
+            QPushButton:pressed {
+                background-color: #DCECF8;
+            }
+
+            QPushButton:disabled {
+                background-color: #F4F6F8;
+                color: #A8B3BE;
+                border-color: #D7DEE5;
+            }
+            """
         )
 
         zoom_out_button.clicked.connect(
@@ -678,13 +710,44 @@ class ImageEditor(QWidget):
             "+"
         )
 
+        # Mesmo padrão visual do botão de redução de zoom.
         zoom_in_button.setObjectName(
-            "secondaryButton"
+            "zoomButton"
         )
 
         zoom_in_button.setFixedSize(
             42,
             38,
+        )
+
+        zoom_in_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #005AA9;
+                border: 1px solid #B9CCE0;
+                border-radius: 7px;
+                font-family: "Segoe UI";
+                font-size: 18px;
+                font-weight: 600;
+                padding: 0px;
+            }
+
+            QPushButton:hover {
+                background-color: #EEF6FC;
+                border-color: #0077C8;
+            }
+
+            QPushButton:pressed {
+                background-color: #DCECF8;
+            }
+
+            QPushButton:disabled {
+                background-color: #F4F6F8;
+                color: #A8B3BE;
+                border-color: #D7DEE5;
+            }
+            """
         )
 
         zoom_in_button.clicked.connect(

@@ -79,7 +79,7 @@ class FinalReportPage(QWidget):
         self.section_badges: dict[str, QLabel] = {}
         self.section_meta_labels: dict[str, QLabel] = {}
 
-        # Conteúdo narrativo do template Personalizado.
+        # Seções técnicas adicionais disponíveis para qualquer template.
         # Cada item:
         # {
         #     "title": str,
@@ -115,6 +115,7 @@ class FinalReportPage(QWidget):
 
         content = QWidget()
         content.setObjectName("pageContent")
+        content.setMinimumWidth(0)
         content.setMaximumWidth(1240)
         content.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -335,12 +336,17 @@ class FinalReportPage(QWidget):
         )
 
         # ---------------------------------------------------------
-        # CONTEÚDO TÉCNICO PERSONALIZADO
+        # SEÇÕES ADICIONAIS
         # ---------------------------------------------------------
 
         self.custom_content_card = QFrame()
         self.custom_content_card.setObjectName("formCard")
         self.custom_content_card.setVisible(False)
+        self.custom_content_card.setMinimumWidth(0)
+        self.custom_content_card.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
 
         custom_layout = QVBoxLayout(self.custom_content_card)
         custom_layout.setContentsMargins(20, 18, 20, 18)
@@ -352,16 +358,21 @@ class FinalReportPage(QWidget):
         custom_header_text = QVBoxLayout()
         custom_header_text.setSpacing(3)
 
-        custom_title = QLabel("Conteúdo técnico personalizado")
+        custom_title = QLabel("Seções adicionais")
         custom_title.setObjectName("formSectionTitle")
 
         custom_description = QLabel(
-            "Monte a análise livremente. Cada bloco vira uma seção fluida "
-            "do relatório e pode conter método, análise, discussão, resultados, "
-            "limitações ou qualquer outro conteúdo técnico."
+            "Adicione conteúdos técnicos complementares que não estejam "
+            "contemplados nas seções padrão do relatório. Cada seção pode "
+            "conter texto e imagens vinculadas."
         )
         custom_description.setObjectName("formSectionDescription")
         custom_description.setWordWrap(True)
+        custom_description.setMinimumWidth(0)
+        custom_description.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Preferred,
+        )
 
         custom_header_text.addWidget(custom_title)
         custom_header_text.addWidget(custom_description)
@@ -369,6 +380,7 @@ class FinalReportPage(QWidget):
         self.add_custom_section_button = QPushButton("＋ Adicionar seção")
         self.add_custom_section_button.setObjectName("secondaryButton")
         self.add_custom_section_button.setMinimumHeight(38)
+        self.add_custom_section_button.setMaximumWidth(170)
         self.add_custom_section_button.setCursor(
             Qt.CursorShape.PointingHandCursor
         )
@@ -385,6 +397,12 @@ class FinalReportPage(QWidget):
         custom_layout.addLayout(custom_header)
 
         self.custom_sections_container = QWidget()
+        self.custom_sections_container.setMinimumWidth(0)
+        self.custom_sections_container.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+
         self.custom_sections_layout = QVBoxLayout(
             self.custom_sections_container
         )
@@ -394,8 +412,8 @@ class FinalReportPage(QWidget):
         custom_layout.addWidget(self.custom_sections_container)
 
         self.custom_empty_label = QLabel(
-            "Nenhuma seção técnica criada. Adicione a primeira seção para "
-            "construir a análise personalizada."
+            "Nenhuma seção adicional criada. Use “Adicionar seção” somente "
+            "quando houver conteúdo técnico complementar a incluir."
         )
         self.custom_empty_label.setObjectName("cardDescription")
         self.custom_empty_label.setWordWrap(True)
@@ -957,7 +975,7 @@ class FinalReportPage(QWidget):
         )
 
         self.custom_content_card.setVisible(
-            self._is_custom_template()
+            True
         )
 
         self.load_context()
@@ -993,8 +1011,7 @@ class FinalReportPage(QWidget):
         self.current_context = context
 
         if (
-            self._is_custom_template()
-            and self.current_project is not None
+            self.current_project is not None
             and self.current_project.id is not None
         ):
             try:
@@ -1007,10 +1024,10 @@ class FinalReportPage(QWidget):
             except Exception as error:
                 QMessageBox.warning(
                     self,
-                    "Conteúdo personalizado",
+                    "Seções adicionais",
                     (
                         "Não foi possível carregar as seções "
-                        f"personalizadas.\n\nDetalhes: {error}"
+                        f"adicionais.\n\nDetalhes: {error}"
                     ),
                 )
                 self.custom_sections = []
@@ -1510,53 +1527,52 @@ class FinalReportPage(QWidget):
 
         context_for_render = dict(self.current_context)
 
-        if self._is_custom_template():
-            context_for_render["custom_sections"] = [
-                {
-                    "title": str(
-                        item.get(
-                            "title",
-                            "",
-                        )
-                        or ""
-                    ).strip(),
-                    "content": str(
-                        item.get(
-                            "content",
-                            "",
-                        )
-                        or ""
-                    ).strip(),
-                    "image_ids": list(
-                        item.get(
-                            "image_ids",
-                            [],
-                        )
-                        or []
-                    ),
-                }
-                for item in self.custom_sections
-                if (
-                    str(
-                        item.get(
-                            "title",
-                            "",
-                        )
-                        or ""
-                    ).strip()
-                    or str(
-                        item.get(
-                            "content",
-                            "",
-                        )
-                        or ""
-                    ).strip()
-                    or item.get(
+        context_for_render["custom_sections"] = [
+            {
+                "title": str(
+                    item.get(
+                        "title",
+                        "",
+                    )
+                    or ""
+                ).strip(),
+                "content": str(
+                    item.get(
+                        "content",
+                        "",
+                    )
+                    or ""
+                ).strip(),
+                "image_ids": list(
+                    item.get(
                         "image_ids",
                         [],
                     )
+                    or []
+                ),
+            }
+            for item in self.custom_sections
+            if (
+                str(
+                    item.get(
+                        "title",
+                        "",
+                    )
+                    or ""
+                ).strip()
+                or str(
+                    item.get(
+                        "content",
+                        "",
+                    )
+                    or ""
+                ).strip()
+                or item.get(
+                    "image_ids",
+                    [],
                 )
-            ]
+            )
+        ]
 
         payload = {
             "project": self.current_project,
@@ -1601,10 +1617,16 @@ class FinalReportPage(QWidget):
         )
 
     # =============================================================
-    # EDITOR DO TEMPLATE PERSONALIZADO
+    # EDITOR DE SEÇÕES ADICIONAIS
     # =============================================================
 
     def _is_custom_template(self) -> bool:
+        """
+        Mantido por compatibilidade com versões anteriores.
+
+        As seções adicionais agora estão disponíveis para todos os
+        templates e este método não controla mais sua visibilidade.
+        """
         if self.current_project is None:
             return False
 
@@ -1693,7 +1715,7 @@ class FinalReportPage(QWidget):
         answer = QMessageBox.question(
             self,
             "Remover seção",
-            "Deseja remover esta seção do relatório personalizado?",
+            "Deseja remover esta seção adicional do relatório?",
             QMessageBox.StandardButton.Yes
             | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -1746,7 +1768,7 @@ class FinalReportPage(QWidget):
                 self,
                 "Erro ao salvar conteúdo",
                 (
-                    "As seções personalizadas não puderam "
+                    "As seções adicionais não puderam "
                     f"ser salvas.\n\nDetalhes: {error}"
                 ),
             )
@@ -1777,13 +1799,18 @@ class FinalReportPage(QWidget):
 
         if not self.custom_sections:
             self.custom_empty_label = QLabel(
-                "Nenhuma seção técnica criada. Adicione a primeira seção "
-                "para construir a análise personalizada."
+                "Nenhuma seção adicional criada. Use “Adicionar seção” quando "
+                "houver conteúdo técnico complementar a incluir."
             )
             self.custom_empty_label.setObjectName(
                 "cardDescription"
             )
             self.custom_empty_label.setWordWrap(True)
+            self.custom_empty_label.setMinimumWidth(0)
+            self.custom_empty_label.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Preferred,
+            )
             self.custom_sections_layout.addWidget(
                 self.custom_empty_label
             )
@@ -1795,6 +1822,11 @@ class FinalReportPage(QWidget):
             frame = QFrame()
             frame.setObjectName(
                 "finalReportSectionRow"
+            )
+            frame.setMinimumWidth(0)
+            frame.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Preferred,
             )
 
             row = QHBoxLayout(frame)
@@ -1810,6 +1842,9 @@ class FinalReportPage(QWidget):
             )
             order.setFixedSize(34, 34)
 
+            body_layout = QVBoxLayout()
+            body_layout.setSpacing(6)
+
             text_layout = QVBoxLayout()
             text_layout.setSpacing(3)
 
@@ -1819,6 +1854,12 @@ class FinalReportPage(QWidget):
             )
             title.setObjectName(
                 "finalReportSectionTitle"
+            )
+            title.setWordWrap(True)
+            title.setMinimumWidth(0)
+            title.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Preferred,
             )
 
             content = self._compact_preview_text(
@@ -1855,9 +1896,18 @@ class FinalReportPage(QWidget):
                 "finalReportSectionDescription"
             )
             description.setWordWrap(True)
+            description.setMinimumWidth(0)
+            description.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Preferred,
+            )
 
             text_layout.addWidget(title)
             text_layout.addWidget(description)
+
+            actions_layout = QHBoxLayout()
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setSpacing(4)
 
             up_button = QPushButton("↑")
             down_button = QPushButton("↓")
@@ -1876,6 +1926,12 @@ class FinalReportPage(QWidget):
                 button.setCursor(
                     Qt.CursorShape.PointingHandCursor
                 )
+                button.setMinimumHeight(28)
+
+            up_button.setFixedWidth(30)
+            down_button.setFixedWidth(30)
+            edit_button.setFixedWidth(54)
+            remove_button.setFixedWidth(66)
 
             up_button.setEnabled(index > 0)
             down_button.setEnabled(
@@ -1899,12 +1955,23 @@ class FinalReportPage(QWidget):
                 self.remove_custom_section(i)
             )
 
-            row.addWidget(order)
-            row.addLayout(text_layout, 1)
-            row.addWidget(up_button)
-            row.addWidget(down_button)
-            row.addWidget(edit_button)
-            row.addWidget(remove_button)
+            actions_layout.addStretch(1)
+            actions_layout.addWidget(up_button)
+            actions_layout.addWidget(down_button)
+            actions_layout.addWidget(edit_button)
+            actions_layout.addWidget(remove_button)
+
+            body_layout.addLayout(text_layout)
+            body_layout.addLayout(actions_layout)
+
+            row.addWidget(
+                order,
+                alignment=Qt.AlignmentFlag.AlignTop,
+            )
+            row.addLayout(
+                body_layout,
+                1,
+            )
 
             self.custom_sections_layout.addWidget(
                 frame

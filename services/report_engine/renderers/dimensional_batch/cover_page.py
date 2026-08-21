@@ -1067,14 +1067,41 @@ class DimensionalBatchCoverPage:
             )
         )
 
+    def _normalize_pdf_text(
+        self,
+        value: Any,
+    ) -> str:
+        """
+        Normaliza caracteres tipográficos que não são renderizados
+        corretamente pelas fontes PDF padrão utilizadas pelo template.
+        """
+        text = str(
+            value or ""
+        )
+
+        replacements = {
+            "—": "-",
+            "–": "-",
+            "−": "-",
+            "\u00a0": " ",
+        }
+
+        for source, target in replacements.items():
+            text = text.replace(
+                source,
+                target,
+            )
+
+        return " ".join(
+            text.split()
+        )
+
     def _optional_text(
         self,
         value: Any,
     ) -> str | None:
-        cleaned = " ".join(
-            str(
-                value or ""
-            ).split()
+        cleaned = self._normalize_pdf_text(
+            value
         )
 
         return (
@@ -1088,10 +1115,8 @@ class DimensionalBatchCoverPage:
         *,
         fallback: str = "Não informado",
     ) -> str:
-        cleaned = " ".join(
-            str(
-                value or ""
-            ).split()
+        cleaned = self._normalize_pdf_text(
+            value
         )
 
         return (

@@ -15,9 +15,12 @@ from services.report_engine.report_context import (
 
 class CustomContentPage:
     """
-    Conteúdo flexível do relatório personalizado.
+    Conteúdo estruturado do relatório personalizado.
 
-    Exibe somente os blocos disponíveis no processo:
+    As seções adicionais livres são renderizadas centralmente pelo
+    BaseReportRenderer para todos os templates.
+
+    Este componente exibe os demais blocos disponíveis no Custom:
     - documentos;
     - características;
     - imagens adicionais;
@@ -43,35 +46,6 @@ class CustomContentPage:
         start_number: int,
     ) -> int:
         section_number = start_number
-
-        custom_sections = (
-            render_context.get_context_value(
-                "custom_sections"
-            )
-            or []
-        )
-
-        if isinstance(
-            custom_sections,
-            list,
-        ):
-            for section in custom_sections:
-                if not isinstance(
-                    section,
-                    dict,
-                ):
-                    continue
-
-                if self._custom_section_has_content(
-                    section
-                ):
-                    self._render_custom_section(
-                        layout=layout,
-                        render_context=render_context,
-                        section=section,
-                        section_number=section_number,
-                    )
-                    section_number += 1
 
         if (
             render_context.section_enabled("documents")

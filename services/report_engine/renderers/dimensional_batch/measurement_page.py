@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+import re
 
 import fitz
 
@@ -39,6 +41,7 @@ class DimensionalBatchMeasurementPage:
             return
 
         fields = self._build_fields(
+            render_context=render_context,
             measurement=measurement,
         )
 
@@ -63,6 +66,7 @@ class DimensionalBatchMeasurementPage:
     def _build_fields(
         self,
         *,
+        render_context: ReportRenderContext,
         measurement: Any,
     ) -> list[tuple[str, str]]:
         candidates = [
@@ -107,11 +111,10 @@ class DimensionalBatchMeasurementPage:
                 ),
             ),
             (
-                "Detalhes da máquina",
-                getattr(
-                    measurement,
-                    "machine_details",
-                    None,
+                "Equipamento e configuração",
+                self._format_equipment_configuration(
+                    render_context=render_context,
+                    measurement=measurement,
                 ),
             ),
             (
@@ -123,7 +126,7 @@ class DimensionalBatchMeasurementPage:
                 ),
             ),
             (
-                "Sensores",
+                "Sensores / tecnologias",
                 getattr(
                     measurement,
                     "sensors",
@@ -143,7 +146,7 @@ class DimensionalBatchMeasurementPage:
         result: list[tuple[str, str]] = []
 
         for label, value in candidates:
-            cleaned = self._optional_text(
+            cleaned = self._format_field_value(
                 value
             )
 
@@ -310,6 +313,221 @@ class DimensionalBatchMeasurementPage:
                 * 9.0,
             ),
         )
+
+    def _format_equipment_configuration(
+        self,
+        *,
+        render_context: ReportRenderContext,
+        measurement: Any,
+    ) -> str | None:
+        """
+        Apresenta somente informações úteis sobre o equipamento.
+
+        Evita expor no PDF textos brutos extraídos do CALYPSO,
+        nomes internos de rotina e separadores inválidos como "?".
+        """
+        project = getattr(
+            render_context,
+            "project",
+            None,
+        )
+
+        project_equipment = self._optional_text(
+            getattr(
+                project,
+                "equipment",
+                None,
+            )
+        )
+
+        raw_details = self._optional_text(
+            getattr(
+                measurement,
+                "machine_details",
+                None,
+            )
+        )
+
+        if not raw_details:
+            return project_equipment
+
+        cleaned = raw_details
+
+        # Normaliza separadores problemáticos vindos de extrações antigas.
+        cleaned = cleaned.replace(
+            " ? ",
+            " · ",
+        )
+        cleaned = cleaned.replace(
+            " | ",
+            " · ",
+        )
+        cleaned = cleaned.replace(
+            "|",
+            " · ",
+        )
+
+        # Remove nomes internos de execução/rotina quando aparecerem.
+        cleaned = re.sub(
+            r"\bRun\b.*?(?=(?:identifica[cç][aã]o|n[uú]mero|CALYPSO|$))",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+
+        cleaned = re.sub(
+            r"\s*[·]\s*",
+            " · ",
+            cleaned,
+        )
+        cleaned = re.sub(
+            r"\s+",
+            " ",
+            cleaned,
+        ).strip(" ·|")
+
+        machine_id_match = re.search(
+            r"(?:identifica[cç][aã]o|n[uú]mero(?:\s+da\s+MMC)?)"
+            r"\s*[:\-]?\s*([A-Za-z0-9._-]+)",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+
+        machine_id = (
+            machine_id_match.group(1)
+            if machine_id_match
+            else None
+        )
+
+        version_match = re.search(
+            r"CALYPSO.*?vers[aã]o\s*[:\-]?\s*([0-9.]+)",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+
+        software_version = (
+            version_match.group(1)
+            if version_match
+            else None
+        )
+
+        parts: list[str] = []
+
+        if project_equipment:
+            parts.append(
+                project_equipment
+            )
+
+        if machine_id:
+            parts.append(
+                f"Identificação: {machine_id}"
+            )
+
+        if software_version:
+            parts.append(
+                f"CALYPSO {software_version}"
+            )
+
+        if parts:
+            return " · ".join(
+                dict.fromkeys(parts)
+            )
+
+        # Se nada estruturado for identificado, prioriza o equipamento
+        # cadastrado no processo em vez do texto bruto extraído.
+        if project_equipment:
+            return project_equipment
+
+        first_part = cleaned.split(
+            " · "
+        )[0].strip()
+
+        return (
+            first_part
+            or None
+        )
+
+    def _format_field_value(
+        self,
+        value: Any,
+    ) -> str | None:
+        """
+        Formata valores para apresentação ao cliente.
+
+        Listas deixam de aparecer como representação Python
+        (ex.: ['Apalpação']) e passam a ser texto natural.
+        """
+        if value is None:
+            return None
+
+        if isinstance(
+            value,
+            datetime,
+        ):
+            return value.strftime(
+                "%d/%m/%Y %H:%M"
+            )
+
+        if isinstance(
+            value,
+            (
+                list,
+                tuple,
+                set,
+            ),
+        ):
+            items = [
+                self._optional_text(
+                    item
+                )
+                for item in value
+            ]
+
+            items = [
+                item
+                for item in items
+                if item
+            ]
+
+            return (
+                ", ".join(items)
+                or None
+            )
+
+        cleaned = self._optional_text(
+            value
+        )
+
+        if not cleaned:
+            return None
+
+        # Alguns dados antigos podem ter sido persistidos como string
+        # representando lista, por exemplo "['Apalpação']".
+        if (
+            cleaned.startswith("[")
+            and cleaned.endswith("]")
+        ):
+            inner = cleaned[
+                1:-1
+            ].strip()
+
+            if inner:
+                parts = [
+                    part.strip(
+                        " '\""
+                    )
+                    for part in inner.split(",")
+                    if part.strip(
+                        " '\""
+                    )
+                ]
+
+                if parts:
+                    return ", ".join(
+                        parts
+                    )
+
+        return cleaned
 
     def _optional_text(
         self,
