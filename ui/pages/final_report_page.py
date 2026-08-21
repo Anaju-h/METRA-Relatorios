@@ -512,6 +512,26 @@ class FinalReportPage(QWidget):
                 None,
             ),
             (
+                "version_history",
+                "↻",
+                "Histórico de versões",
+                (
+                    "Versões emitidas e versão atual de trabalho. "
+                    "Opcional no PDF entregue."
+                ),
+                None,
+            ),
+            (
+                "validation_history",
+                "✓",
+                "Histórico de validação",
+                (
+                    "Revisões, aprovações e invalidações registradas. "
+                    "Opcional no PDF entregue."
+                ),
+                None,
+            ),
+            (
                 "technical_control",
                 "◇",
                 "Elaboração e aprovação",
@@ -571,8 +591,8 @@ class FinalReportPage(QWidget):
 
         info_text = QLabel(
             "Seções marcadas serão incluídas na pré-visualização. "
-            "Itens indisponíveis permanecem desabilitados até que "
-            "existam informações."
+            "Histórico de versões e histórico de validação são opcionais "
+            "e permanecem desmarcados por padrão."
         )
         info_text.setObjectName(
             "finalReportInfoText"
@@ -1416,6 +1436,34 @@ class FinalReportPage(QWidget):
                 else "Sem observações"
             )
 
+        if key == "version_history":
+            total = len(
+                context.get(
+                    "version_history",
+                    [],
+                )
+                or []
+            )
+            return (
+                f"{total} registro(s)"
+                if total
+                else "Sem emissões"
+            )
+
+        if key == "validation_history":
+            total = len(
+                context.get(
+                    "validation_history",
+                    [],
+                )
+                or []
+            )
+            return (
+                f"{total} evento(s)"
+                if total
+                else "Sem eventos"
+            )
+
         if key == "technical_control":
             return str(
                 control.get(
@@ -1439,6 +1487,15 @@ class FinalReportPage(QWidget):
             for key, checkbox in self.section_inputs.items()
             if checkbox.isEnabled()
         }
+
+        # Se o histórico de versões for incluído, a identificação
+        # da versão também aparece no cabeçalho/rodapé do PDF.
+        selected_sections["show_version"] = bool(
+            selected_sections.get(
+                "version_history",
+                False,
+            )
+        )
 
         if not any(selected_sections.values()):
             QMessageBox.warning(

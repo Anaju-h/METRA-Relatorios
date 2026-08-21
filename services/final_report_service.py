@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import re
 
 from models.project import Project
 from repositories.characteristic_repository import (
@@ -21,6 +22,9 @@ from services.report_extraction_service import (
 )
 from services.technical_control_service import (
     TechnicalControlService,
+)
+from services.report_version_service import (
+    ReportVersionService,
 )
 
 
@@ -60,6 +64,10 @@ class FinalReportService:
 
         self.characteristic_repository = (
             CharacteristicRepository()
+        )
+
+        self.report_version_service = (
+            ReportVersionService()
         )
 
     # =============================================================
@@ -117,6 +125,26 @@ class FinalReportService:
             self.technical_control_service
             .get_control(
                 project.id
+            )
+        )
+
+        report_versions = (
+            self.report_version_service
+            .get_project_versions(
+                project.id
+            )
+        )
+
+        version_history = (
+            self._build_version_history(
+                project=project,
+                report_versions=report_versions,
+            )
+        )
+
+        validation_history = (
+            self._build_validation_history(
+                technical_control
             )
         )
 
@@ -382,9 +410,6 @@ class FinalReportService:
         has_observations = (
             self._has_observations(
                 measurement=measurement,
-                technical_control=(
-                    technical_control
-                ),
             )
         )
 
@@ -418,6 +443,21 @@ class FinalReportService:
 
             "observations":
                 has_observations,
+
+            "version_history":
+                bool(
+                    version_history
+                ),
+
+            "validation_history":
+                bool(
+                    validation_history
+                ),
+
+            # A versão no cabeçalho/rodapé acompanha a opção
+            # de histórico de versões na tela de relatório final.
+            "show_version":
+                True,
         }
 
         default_sections = {
@@ -450,6 +490,17 @@ class FinalReportService:
 
             "observations":
                 has_observations,
+
+            # Rastreabilidade é mantida internamente sempre.
+            # A inclusão no PDF entregue é opcional e começa desmarcada.
+            "version_history":
+                False,
+
+            "validation_history":
+                False,
+
+            "show_version":
+                False,
         }
 
         return {
@@ -486,6 +537,12 @@ class FinalReportService:
 
             "technical_control":
                 technical_control,
+
+            "version_history":
+                version_history,
+
+            "validation_history":
+                validation_history,
 
             "document_summary":
                 document_summary,
@@ -1133,9 +1190,14 @@ class FinalReportService:
     def _has_observations(
         self,
         measurement,
-        technical_control,
     ) -> bool:
-        measurement_notes = bool(
+        """
+        Observações técnicas destinadas ao relatório do cliente.
+
+        Notas internas de revisão, invalidações e auditoria pertencem
+        exclusivamente ao histórico de validação.
+        """
+        return bool(
             measurement
             and str(
                 measurement.special_instructions
@@ -1143,18 +1205,336 @@ class FinalReportService:
             ).strip()
         )
 
-        review_notes = bool(
-            technical_control
-            and str(
-                technical_control.review_notes
+    # =============================================================
+    # RASTREABILIDADE
+    # =============================================================
+
+    def _build_version_history(
+        self,
+        *,
+        project: Project,
+        report_versions,
+    ) -> list[dict[str, Any]]:
+        history: list[dict[str, Any]] = []
+
+        emitted_versions: set[str] = set()
+
+        for item in report_versions:
+            version = str(
+                getattr(
+                    item,
+                    "version",
+                    "",
+                )
                 or ""
             ).strip()
+
+            if version:
+                emitted_versions.add(
+                    version.upper()
+                )
+
+            created_by = str(
+                getattr(
+                    item,
+                    "created_by",
+                    "",
+                )
+                or ""
+            ).strip()
+
+            reviewed_by = str(
+                getattr(
+                    item,
+                    "reviewed_by",
+                    "",
+                )
+                or ""
+            ).strip()
+
+            responsible = (
+                reviewed_by
+                or created_by
+                or "Não informado"
+            )
+
+            history.append(
+                {
+                    "version":
+                        version
+                        or "Versão não informada",
+
+                    "datetime":
+                        getattr(
+                            item,
+                            "created_at",
+                            None,
+                        ),
+
+                    "responsible":
+                        responsible,
+
+                    "status":
+                        str(
+                            getattr(
+                                item,
+                                "status",
+                                "",
+                            )
+                            or "Emitido"
+                        ).strip(),
+
+                    "description":
+                        "Emissão oficial registrada.",
+                }
+            )
+
+        current_version = str(
+            project.version
+            or "V1.0"
+        ).strip()
+
+        if (
+            current_version
+            and current_version.upper()
+            not in emitted_versions
+        ):
+            history.append(
+                {
+                    "version":
+                        current_version,
+
+                    "datetime":
+                        project.updated_at
+                        or project.created_at,
+
+                    "responsible":
+                        "Em elaboração",
+
+                    "status":
+                        "Versão de trabalho",
+
+                    "description":
+                        (
+                            "Versão atual em preparação; "
+                            "ainda não emitida oficialmente."
+                        ),
+                }
+            )
+
+        return history
+
+    def _build_validation_history(
+        self,
+        control,
+    ) -> list[dict[str, Any]]:
+        if control is None:
+            return []
+
+        history: list[dict[str, Any]] = []
+
+        prepared_by = str(
+            getattr(
+                control,
+                "prepared_by",
+                "",
+            )
+            or ""
+        ).strip()
+
+        reviewed_by = str(
+            getattr(
+                control,
+                "reviewed_by",
+                "",
+            )
+            or ""
+        ).strip()
+
+        prepared_at = getattr(
+            control,
+            "prepared_at",
+            None,
         )
 
-        return (
-            measurement_notes
-            or review_notes
+        reviewed_at = getattr(
+            control,
+            "reviewed_at",
+            None,
         )
+
+        if prepared_at or prepared_by:
+            history.append(
+                {
+                    "datetime":
+                        prepared_at
+                        or getattr(
+                            control,
+                            "created_at",
+                            None,
+                        ),
+
+                    "event":
+                        "Elaboração técnica",
+
+                    "responsible":
+                        prepared_by
+                        or "Não informado",
+
+                    "observation":
+                        (
+                            "Responsável pela elaboração "
+                            "registrado no Controle Técnico."
+                        ),
+                }
+            )
+
+        if reviewed_at:
+            status = str(
+                getattr(
+                    control,
+                    "status",
+                    "",
+                )
+                or ""
+            ).strip()
+
+            event = (
+                "Aprovação técnica"
+                if status == "Aprovado"
+                else "Revisão técnica"
+            )
+
+            history.append(
+                {
+                    "datetime":
+                        reviewed_at,
+
+                    "event":
+                        event,
+
+                    "responsible":
+                        reviewed_by
+                        or "Não informado",
+
+                    "observation":
+                        f"Situação registrada: {status or 'Revisado'}.",
+                }
+            )
+
+        review_notes = str(
+            getattr(
+                control,
+                "review_notes",
+                "",
+            )
+            or ""
+        ).strip()
+
+        for raw_line in review_notes.splitlines():
+            line = raw_line.strip()
+
+            if not line:
+                continue
+
+            match = re.match(
+                r"^\[(?P<datetime>[^\]]+)\]\s*(?P<message>.+)$",
+                line,
+            )
+
+            if match is not None:
+                event_datetime = (
+                    match.group(
+                        "datetime"
+                    )
+                )
+                message = (
+                    match.group(
+                        "message"
+                    ).strip()
+                )
+            else:
+                event_datetime = getattr(
+                    control,
+                    "updated_at",
+                    None,
+                )
+                message = line
+
+            lower_message = (
+                message.lower()
+            )
+
+            if (
+                "aprovação anterior invalidada"
+                in lower_message
+            ):
+                event = (
+                    "Validação invalidada"
+                )
+                observation = re.sub(
+                    r"^Aprovação anterior invalidada:\s*",
+                    "",
+                    message,
+                    flags=re.IGNORECASE,
+                ).strip()
+            else:
+                event = (
+                    "Registro de validação"
+                )
+                observation = message
+
+            history.append(
+                {
+                    "datetime":
+                        event_datetime,
+
+                    "event":
+                        event,
+
+                    # Invalidações são geradas automaticamente pelo METRA.
+                    "responsible":
+                        "Sistema"
+                        if event == "Validação invalidada"
+                        else (
+                            reviewed_by
+                            or prepared_by
+                            or "Não informado"
+                        ),
+
+                    "observation":
+                        observation,
+                }
+            )
+
+        # Se não houver datas/notes, ainda existe o estado atual.
+        if not history:
+            history.append(
+                {
+                    "datetime":
+                        getattr(
+                            control,
+                            "updated_at",
+                            None,
+                        ),
+
+                    "event":
+                        "Situação do Controle Técnico",
+
+                    "responsible":
+                        reviewed_by
+                        or prepared_by
+                        or "Não informado",
+
+                    "observation":
+                        (
+                            "Situação atual: "
+                            f"{getattr(control, 'status', None) or 'Não informada'}."
+                        ),
+                }
+            )
+
+        return history
 
     # =============================================================
     # STATUS

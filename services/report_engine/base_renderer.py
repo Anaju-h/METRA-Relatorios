@@ -11,6 +11,9 @@ from services.report_engine.components.institutional_header import (
 from services.report_engine.components.page_footer import (
     PageFooter,
 )
+from services.report_engine.components.traceability_page import (
+    TraceabilityReportPage,
+)
 from services.report_engine.layout_engine import (
     PageGeometry,
     ReportLayoutEngine,
@@ -24,8 +27,8 @@ class BaseReportRenderer(ABC):
     """
     Classe-base de todos os renderizadores de relatório do METRA.
 
-    Cada template específico herda desta classe e implementa
-    apenas a ordem e o conteúdo das seções técnicas.
+    Cada template específico implementa apenas seu conteúdo técnico.
+    A rastreabilidade opcional é adicionada centralmente para todos.
     """
 
     template_code: str = "PERSONALIZADO"
@@ -42,13 +45,8 @@ class BaseReportRenderer(ABC):
         self.base_dir = base_dir
 
         self.document: fitz.Document | None = None
-
         self.layout: ReportLayoutEngine | None = None
-
-        self.render_context: (
-            ReportRenderContext
-            | None
-        ) = None
+        self.render_context: ReportRenderContext | None = None
 
         self.geometry = PageGeometry()
 
@@ -57,6 +55,10 @@ class BaseReportRenderer(ABC):
         )
 
         self.footer = PageFooter()
+
+        self.traceability_page = (
+            TraceabilityReportPage()
+        )
 
     # =============================================================
     # RENDERIZAÇÃO PRINCIPAL
@@ -70,12 +72,11 @@ class BaseReportRenderer(ABC):
         """
         Executa o fluxo completo do template.
 
-        A versão continua existindo internamente no projeto mesmo
-        quando não é exibida no documento entregue.
+        O histórico é sempre mantido no sistema. Sua inclusão no PDF
+        depende exclusivamente das opções escolhidas na tela final.
         """
 
         self.document = document
-
         self.render_context = render_context
 
         self.layout = ReportLayoutEngine(
@@ -88,7 +89,79 @@ class BaseReportRenderer(ABC):
 
         self.layout.new_page()
 
-        self.render_document()
+        # A rastreabilidade deve aparecer antes do encerramento
+        # institucional do relatório. Como cada template possui sua
+        # própria página de Controle Técnico, interceptamos a chamada
+        # dessa página de forma centralizada.
+        #
+        # Resultado para TODOS os templates:
+        # conteúdo técnico
+        # -> históricos opcionais
+        # -> conclusão / controle técnico / assinaturas
+        #
+        # Se o Controle Técnico não estiver selecionado, os históricos
+        # continuam sendo renderizados ao final do conteúdo técnico.
+        traceability_rendered = False
+
+        technical_control_page = getattr(
+            self,
+            "technical_control_page",
+            None,
+        )
+
+        original_technical_render = None
+
+        if (
+            technical_control_page is not None
+            and hasattr(
+                technical_control_page,
+                "render",
+            )
+        ):
+            original_technical_render = (
+                technical_control_page.render
+            )
+
+            def render_technical_control_after_traceability(
+                *args,
+                **kwargs,
+            ):
+                nonlocal traceability_rendered
+
+                if (
+                    not traceability_rendered
+                    and self._has_optional_traceability()
+                ):
+                    self._render_optional_traceability()
+                    traceability_rendered = True
+
+                return original_technical_render(
+                    *args,
+                    **kwargs,
+                )
+
+            technical_control_page.render = (
+                render_technical_control_after_traceability
+            )
+
+        try:
+            self.render_document()
+
+            if (
+                not traceability_rendered
+                and self._has_optional_traceability()
+            ):
+                self._render_optional_traceability()
+                traceability_rendered = True
+
+        finally:
+            if (
+                technical_control_page is not None
+                and original_technical_render is not None
+            ):
+                technical_control_page.render = (
+                    original_technical_render
+                )
 
         self.footer.apply(
             document=document,
@@ -122,11 +195,37 @@ class BaseReportRenderer(ABC):
     def render_document(
         self,
     ) -> None:
-        """
-        Implementa o conteúdo específico do template.
-        """
-
         raise NotImplementedError
+
+    # =============================================================
+    # RASTREABILIDADE OPCIONAL
+    # =============================================================
+
+    def _has_optional_traceability(
+        self,
+    ) -> bool:
+        return (
+            self.section_enabled(
+                "version_history"
+            )
+            or self.section_enabled(
+                "validation_history"
+            )
+        )
+
+    def _render_optional_traceability(
+        self,
+    ) -> None:
+        if (
+            self.layout is None
+            or self.render_context is None
+        ):
+            return
+
+        self.traceability_page.render(
+            layout=self.layout,
+            render_context=self.render_context,
+        )
 
     # =============================================================
     # INICIALIZAÇÃO DE PÁGINA
@@ -137,10 +236,6 @@ class BaseReportRenderer(ABC):
         page: fitz.Page,
         section_title: str | None,
     ) -> float:
-        """
-        Desenha o cabeçalho institucional de cada página.
-        """
-
         report_title = self.report_title
 
         if section_title:

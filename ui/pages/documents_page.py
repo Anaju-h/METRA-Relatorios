@@ -514,9 +514,10 @@ class DocumentsPage(QWidget):
         )
 
         open_button = QPushButton(
-            "Abrir documento  →"
+            "Abrir documento"
         )
-        open_button.setObjectName("cardButton")
+        open_button.setObjectName("primaryButton")
+        open_button.setFixedSize(148, 38)
         open_button.setCursor(
             Qt.CursorShape.PointingHandCursor
         )
@@ -546,26 +547,15 @@ class DocumentsPage(QWidget):
         delete_button.setObjectName(
             "deleteDocumentButton"
         )
-        delete_button.setMinimumHeight(
-            32
-        )
-        delete_button.setMinimumWidth(
-            132
-        )
-        delete_button.setCursor(
-            Qt.CursorShape.PointingHandCursor
-        )
-        delete_button.setEnabled(
-            document_id is not None
-        )
+        delete_button.setFixedSize(148, 38)
         delete_button.setStyleSheet(
             """
             QPushButton#deleteDocumentButton {
-                background: transparent;
+                background: #FFFFFF;
                 border: 1px solid #D9A3A3;
-                border-radius: 6px;
+                border-radius: 7px;
                 color: #A51D1D;
-                padding: 5px 12px;
+                padding: 6px 12px;
                 font-weight: 600;
             }
 
@@ -579,11 +569,17 @@ class DocumentsPage(QWidget):
             }
 
             QPushButton#deleteDocumentButton:disabled {
-                color: #A7ADB4;
+                background: #F7F8F9;
                 border-color: #D9DEE4;
-                background: transparent;
+                color: #A7ADB4;
             }
             """
+        )
+        delete_button.setCursor(
+            Qt.CursorShape.PointingHandCursor
+        )
+        delete_button.setEnabled(
+            document_id is not None
         )
 
         if document_id is not None:
@@ -602,7 +598,7 @@ class DocumentsPage(QWidget):
             )
 
         action_layout = QVBoxLayout()
-        action_layout.setSpacing(5)
+        action_layout.setSpacing(8)
         action_layout.setAlignment(
             Qt.AlignmentFlag.AlignRight
             | Qt.AlignmentFlag.AlignVCenter

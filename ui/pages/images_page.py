@@ -748,21 +748,46 @@ class ImagesPage(QWidget):
         )
 
         move_left_button = QPushButton(
-            "←"
+            "↑"
         )
 
         move_left_button.setToolTip(
-            "Mover para antes"
+            "Mover imagem para cima na ordem do relatório"
         )
 
         move_left_button.setObjectName(
-            "secondaryButton"
+            "imageOrderButton"
         )
+
+        order_button_style = """
+        QPushButton#imageOrderButton {
+            background: #FFFFFF;
+            border: 1px solid #B8C9D8;
+            border-radius: 7px;
+            color: #075EA8;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        QPushButton#imageOrderButton:hover {
+            background: #F2F8FD;
+            border-color: #0B78C4;
+        }
+        QPushButton#imageOrderButton:pressed {
+            background: #E5F1FA;
+        }
+        QPushButton#imageOrderButton:disabled {
+            background: #F4F6F8;
+            border-color: #D6DEE5;
+            color: #9AA8B5;
+        }
+        """
 
         move_left_button.setFixedSize(
             38,
             34,
         )
+
+        move_left_button.setStyleSheet(order_button_style)
 
         move_left_button.setEnabled(
             index > 0
@@ -778,21 +803,23 @@ class ImagesPage(QWidget):
         )
 
         move_right_button = QPushButton(
-            "→"
+            "↓"
         )
 
         move_right_button.setToolTip(
-            "Mover para depois"
+            "Mover imagem para baixo na ordem do relatório"
         )
 
         move_right_button.setObjectName(
-            "secondaryButton"
+            "imageOrderButton"
         )
 
         move_right_button.setFixedSize(
             38,
             34,
         )
+
+        move_right_button.setStyleSheet(order_button_style)
 
         move_right_button.setEnabled(
             index
@@ -1119,7 +1146,7 @@ class ImagesPage(QWidget):
         actions = QHBoxLayout()
 
         actions.setSpacing(
-            8
+            6
         )
 
         save_button = QPushButton(
@@ -1127,11 +1154,35 @@ class ImagesPage(QWidget):
         )
 
         save_button.setObjectName(
-            "cardButton"
+            "saveImageMetadataButton"
         )
 
-        save_button.setMinimumHeight(
-            40
+        save_button.setFixedSize(
+            210,
+            40,
+        )
+
+        save_button.setStyleSheet(
+            """
+            QPushButton#saveImageMetadataButton {
+                background: #FFFFFF;
+                border: 1px solid #AFC6D9;
+                border-radius: 7px;
+                color: #073B66;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            QPushButton#saveImageMetadataButton:hover {
+                background: #F3F8FC;
+                border-color: #6E9EC2;
+            }
+
+            QPushButton#saveImageMetadataButton:pressed {
+                background: #E8F2F9;
+            }
+            """
         )
 
         save_button.setCursor(
@@ -1155,11 +1206,36 @@ class ImagesPage(QWidget):
         )
 
         edit_button.setObjectName(
-            "primaryButton"
+            "editImageMarksButton"
         )
 
-        edit_button.setMinimumHeight(
-            40
+        edit_button.setFixedSize(
+            145,
+            40,
+        )
+
+        edit_button.setStyleSheet(
+            """
+            QPushButton#editImageMarksButton {
+                background: #0B78C8;
+                border: 1px solid #0B78C8;
+                border-radius: 7px;
+                color: #FFFFFF;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            QPushButton#editImageMarksButton:hover {
+                background: #086DB6;
+                border-color: #086DB6;
+            }
+
+            QPushButton#editImageMarksButton:pressed {
+                background: #075F9E;
+                border-color: #075F9E;
+            }
+            """
         )
 
         edit_button.setCursor(
@@ -1179,11 +1255,35 @@ class ImagesPage(QWidget):
         )
 
         delete_button.setObjectName(
-            "dangerButton"
+            "deleteImageButton"
         )
 
-        delete_button.setMinimumHeight(
-            40
+        delete_button.setFixedSize(
+            90,
+            40,
+        )
+
+        delete_button.setStyleSheet(
+            """
+            QPushButton#deleteImageButton {
+                background: #FFFFFF;
+                border: 1px solid #D9A3A3;
+                border-radius: 7px;
+                color: #A51D1D;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            QPushButton#deleteImageButton:hover {
+                background: #FFF4F4;
+                border-color: #C94C4C;
+            }
+
+            QPushButton#deleteImageButton:pressed {
+                background: #FDE7E7;
+            }
+            """
         )
 
         delete_button.setCursor(
@@ -1206,11 +1306,11 @@ class ImagesPage(QWidget):
             edit_button
         )
 
-        actions.addStretch()
-
         actions.addWidget(
             delete_button
         )
+
+        actions.addStretch()
 
         layout.addLayout(
             actions

@@ -653,7 +653,9 @@ class OverviewPage(QWidget):
         description_label.setWordWrap(True)
 
         button = QPushButton(button_text)
-        button.setObjectName("cardButton")
+        button.setObjectName("secondaryButton")
+        button.setMinimumHeight(38)
+        button.setMinimumWidth(170)
         button.setCursor(
             Qt.CursorShape.PointingHandCursor
         )

@@ -470,10 +470,10 @@ class ProcessesPage(QWidget):
     ) -> QFrame:
         card = QFrame()
         card.setObjectName("recentProjectCard")
-        card.setMinimumHeight(112)
+        card.setMinimumHeight(132)
 
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(18, 15, 18, 15)
+        layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(16)
 
         icon = QLabel("▤")
@@ -535,43 +535,42 @@ class ProcessesPage(QWidget):
         information.addWidget(metadata)
         information.addWidget(details)
 
+        # ---------------------------------------------------------
+        # ÁREA DIREITA: ESTADO + AÇÕES
+        # ---------------------------------------------------------
+
+        right_column = QVBoxLayout()
+        right_column.setContentsMargins(0, 0, 0, 0)
+        right_column.setSpacing(10)
+
+        badges_row = QHBoxLayout()
+        badges_row.setContentsMargins(0, 0, 0, 0)
+        badges_row.setSpacing(8)
+
         status = QLabel(project.status)
         status.setObjectName("statusBadge")
 
         version = QLabel(project.version)
         version.setObjectName("versionBadge")
 
-        actions = QVBoxLayout()
-        actions.setSpacing(7)
+        badges_row.addStretch()
+        badges_row.addWidget(status)
+        badges_row.addWidget(version)
+
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 0, 0, 0)
+        actions.setSpacing(8)
 
         open_button = QPushButton(
-            "Abrir processo →"
+            "Abrir processo"
         )
         open_button.setObjectName(
-            "cardButton"
-        )
-        open_button.setMinimumWidth(150)
-        open_button.setCursor(
-            Qt.CursorShape.PointingHandCursor
-        )
-        open_button.clicked.connect(
-            lambda checked=False,
-            report_id=project.report_id:
-            self.open_project_requested.emit(
-                report_id
-            )
-        )
-
-        actions.addWidget(
-            open_button
+            "processOpenButton"
         )
 
         if project.status == "Concluído":
             status_button = QPushButton(
                 "Reabrir processo"
-            )
-            status_button.setObjectName(
-                "secondaryButton"
             )
             status_button.clicked.connect(
                 lambda checked=False,
@@ -584,9 +583,6 @@ class ProcessesPage(QWidget):
             status_button = QPushButton(
                 "Concluir processo"
             )
-            status_button.setObjectName(
-                "secondaryButton"
-            )
             status_button.clicked.connect(
                 lambda checked=False,
                 selected_project=project:
@@ -595,14 +591,8 @@ class ProcessesPage(QWidget):
                 )
             )
 
-        status_button.setMinimumWidth(150)
-        status_button.setMinimumHeight(32)
-        status_button.setCursor(
-            Qt.CursorShape.PointingHandCursor
-        )
-
-        actions.addWidget(
-            status_button
+        status_button.setObjectName(
+            "processStatusButton"
         )
 
         delete_button = QPushButton(
@@ -611,19 +601,77 @@ class ProcessesPage(QWidget):
         delete_button.setObjectName(
             "deleteProcessButton"
         )
-        delete_button.setMinimumWidth(150)
-        delete_button.setMinimumHeight(32)
-        delete_button.setCursor(
-            Qt.CursorShape.PointingHandCursor
+        delete_button.clicked.connect(
+            lambda checked=False,
+            selected_project=project:
+            self._confirm_delete_project(
+                selected_project
+            )
         )
+
+        for button in (
+            open_button,
+            status_button,
+            delete_button,
+        ):
+            button.setFixedSize(148, 38)
+            button.setCursor(
+                Qt.CursorShape.PointingHandCursor
+            )
+
+        open_button.setStyleSheet(
+            """
+            QPushButton#processOpenButton {
+                background: #0B78C8;
+                border: 1px solid #0B78C8;
+                border-radius: 7px;
+                color: white;
+                padding: 6px 12px;
+                font-weight: 600;
+            }
+
+            QPushButton#processOpenButton:hover {
+                background: #086DB6;
+                border-color: #086DB6;
+            }
+
+            QPushButton#processOpenButton:pressed {
+                background: #075F9E;
+                border-color: #075F9E;
+            }
+            """
+        )
+
+        status_button.setStyleSheet(
+            """
+            QPushButton#processStatusButton {
+                background: white;
+                border: 1px solid #AFC6D9;
+                border-radius: 7px;
+                color: #073B66;
+                padding: 6px 12px;
+                font-weight: 600;
+            }
+
+            QPushButton#processStatusButton:hover {
+                background: #F3F8FC;
+                border-color: #6E9EC2;
+            }
+
+            QPushButton#processStatusButton:pressed {
+                background: #E8F2F9;
+            }
+            """
+        )
+
         delete_button.setStyleSheet(
             """
             QPushButton#deleteProcessButton {
-                background: transparent;
+                background: white;
                 border: 1px solid #D9A3A3;
-                border-radius: 6px;
+                border-radius: 7px;
                 color: #A51D1D;
-                padding: 5px 12px;
+                padding: 6px 12px;
                 font-weight: 600;
             }
 
@@ -637,29 +685,26 @@ class ProcessesPage(QWidget):
             }
             """
         )
-        delete_button.clicked.connect(
+
+        open_button.clicked.connect(
             lambda checked=False,
-            selected_project=project:
-            self._confirm_delete_project(
-                selected_project
+            report_id=project.report_id:
+            self.open_project_requested.emit(
+                report_id
             )
         )
 
-        actions.addWidget(
-            delete_button
-        )
+        actions.addWidget(open_button)
+        actions.addWidget(status_button)
+        actions.addWidget(delete_button)
+
+        right_column.addLayout(badges_row)
+        right_column.addStretch()
+        right_column.addLayout(actions)
 
         layout.addWidget(icon)
         layout.addLayout(information, 1)
-        layout.addWidget(
-            status,
-            alignment=Qt.AlignmentFlag.AlignTop,
-        )
-        layout.addWidget(
-            version,
-            alignment=Qt.AlignmentFlag.AlignTop,
-        )
-        layout.addLayout(actions)
+        layout.addLayout(right_column)
 
         return card
 
